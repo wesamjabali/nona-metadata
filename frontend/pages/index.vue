@@ -103,13 +103,13 @@
                 </Button>
             </div>
           </div>
-        </template>
-      </Card>
-        <div v-if="fetchAlbumArtResult" class="summary__result">
-          <Message :severity="fetchAlbumArtResult.severity" :closable="false">
+          <div v-if="fetchAlbumArtResult" class="summary__result">
+          <Message style="margin-top: 1rem" :severity="fetchAlbumArtResult.severity" :closable="true">
             {{ fetchAlbumArtResult.message }}
           </Message>
         </div>
+        </template>
+      </Card>
       <div class="metadata__panel">
         <div class="metadata__files">
           <Card class="card">
