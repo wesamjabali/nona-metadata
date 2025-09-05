@@ -2,9 +2,14 @@ import { stat } from "fs/promises";
 import { basename, extname, join, resolve } from "path";
 import { baseDirectory, pathNormalization } from "../config/constants.js";
 import { createErrorResponse, createJsonResponse } from "../middleware/cors.js";
+import { CacheManager } from "../services/cache.js";
 import { getFileMetadata, updateFileMetadata } from "../services/metadata.js";
 import type { MetadataRequest } from "../types/metadata.js";
 import { moveFileToNewStructure } from "../utils/directory.js";
+import { extractSourceUrl } from "../utils/sourceUrl.js";
+
+// Create a cache manager instance for cache invalidation
+const cacheManager = new CacheManager();
 
 /**
  * Handle GET /metadata - get metadata for a specific file
@@ -141,6 +146,20 @@ export async function handleUpdateMetadata(
       } catch (moveError) {
         console.error("Failed to move file to new structure:", moveError);
       }
+    }
+
+    // Check if this file has a source URL and invalidate cache if found
+    try {
+      // Check the final file location for source URL
+      const sourceUrl = await extractSourceUrl(finalAbsoluteFilePath);
+
+      if (sourceUrl) {
+        console.log(`🗑️ Invalidating cache for source URL: ${sourceUrl}`);
+        cacheManager.remove(sourceUrl);
+      }
+    } catch (cacheError) {
+      console.warn("Failed to invalidate cache for file:", cacheError);
+      // Don't fail the request if cache invalidation fails
     }
 
     const finalRelativePath = finalAbsoluteFilePath.replace(

@@ -154,6 +154,31 @@ export class CacheManager {
   }
 
   /**
+   * Remove cached metadata for a specific URL
+   * @param url The YouTube URL to remove from cache
+   * @returns True if an entry was removed, false if not found
+   */
+  remove(url: string): boolean {
+    try {
+      const deleteQuery = this.db.prepare(`
+        DELETE FROM url_cache WHERE url = ?
+      `);
+      const result = deleteQuery.run(url);
+
+      if (result.changes > 0) {
+        console.log(`🗑️ Removed cached metadata for URL: ${url}`);
+        return true;
+      } else {
+        console.log(`❌ No cache entry found for URL: ${url}`);
+        return false;
+      }
+    } catch (error) {
+      console.warn(`Failed to remove cache entry for URL ${url}:`, error);
+      return false;
+    }
+  }
+
+  /**
    * Clean up old cache entries (optional maintenance function)
    * @param daysOld Number of days old entries to remove (default: 0)
    */

@@ -258,6 +258,8 @@ export async function processVideo(
         `title=${aiVideoData.title}`,
         "-metadata",
         `artist=${aiVideoData.artist}`,
+        "-metadata",
+        `comment=Source: ${cleanUrl}`,
       ];
 
       if (aiVideoData.album) {
@@ -430,6 +432,8 @@ Release Year: ${videoInfo.release_year || "N/A"}
       `title=${aiVideoData.title}`,
       "-metadata",
       `artist=${aiVideoData.artist}`,
+      "-metadata",
+      `comment=Source: ${cleanUrl}`,
     ];
 
     if (aiVideoData.album) {
