@@ -1,3 +1,5 @@
+import { discogsApiKey } from "../config/constants.js";
+
 type MusicBrainzRelease = {
   id: string;
   title: string;
@@ -444,6 +446,113 @@ function getExtensionFromContentType(contentType: string): string {
 }
 
 /**
+ * Searches Discogs for album art
+ * @param artist The artist's name
+ * @param album The album's title
+ * @returns An object with image data and content type, or null if not found
+ */
+async function searchDiscogsForAlbumArt(
+  artist: string,
+  album: string
+): Promise<{ data: ArrayBuffer; contentType: string } | null> {
+  if (!discogsApiKey) {
+    console.log("Discogs API key not configured, skipping Discogs search");
+    return null;
+  }
+
+  try {
+    console.log(`Searching Discogs for "${album}" by "${artist}"...`);
+
+    const searchUrl = `https://api.discogs.com/database/search?artist=${encodeURIComponent(
+      artist
+    )}&release_title=${encodeURIComponent(album)}&type=release&per_page=5`;
+
+    const response = await fetch(searchUrl, {
+      headers: {
+        Authorization: `Discogs token=${discogsApiKey}`,
+        "User-Agent": "Nona-metadata (contact@example.com)",
+      },
+    });
+
+    if (!response.ok) {
+      console.error(
+        `Discogs search failed: ${response.status} ${response.statusText}`
+      );
+      return null;
+    }
+
+    const data = (await response.json()) as { results?: any[] };
+    const results = data.results;
+
+    if (!results || results.length === 0) {
+      console.log("No Discogs results found");
+      return null;
+    }
+
+    // Try to get the first result with images
+    for (const result of results) {
+      if (result.thumb && result.thumb !== "") {
+        console.log(`Found Discogs result with thumb: ${result.thumb}`);
+
+        // Get the full release details to access larger images
+        const releaseUrl = `https://api.discogs.com/releases/${result.id}`;
+        const releaseResponse = await fetch(releaseUrl, {
+          headers: {
+            Authorization: `Discogs key=${discogsApiKey}`,
+            "User-Agent": "Nona-metadata (contact@example.com)",
+          },
+        });
+
+        if (releaseResponse.ok) {
+          const releaseData = (await releaseResponse.json()) as {
+            images?: any[];
+          };
+          const images = releaseData.images;
+
+          if (images && images.length > 0) {
+            // Get the primary image or the first one
+            const primaryImage =
+              images.find((img: any) => img.type === "primary") || images[0];
+            const imageUrl = primaryImage.uri;
+
+            console.log(`Fetching Discogs image: ${imageUrl}`);
+
+            const imageResponse = await fetch(imageUrl);
+            if (imageResponse.ok) {
+              const contentType =
+                imageResponse.headers.get("content-type") || "image/jpeg";
+              const data = await imageResponse.arrayBuffer();
+
+              console.log(`Successfully retrieved album art from Discogs`);
+              return { data, contentType };
+            }
+          }
+        }
+
+        // Fallback to thumb if full images aren't available
+        const thumbResponse = await fetch(result.thumb);
+        if (thumbResponse.ok) {
+          const contentType =
+            thumbResponse.headers.get("content-type") || "image/jpeg";
+          const data = await thumbResponse.arrayBuffer();
+
+          console.log(
+            `Successfully retrieved album art thumbnail from Discogs`
+          );
+          return { data, contentType };
+        }
+      }
+    }
+
+    console.log("No suitable images found in Discogs results");
+    return null;
+  } catch (error) {
+    console.error("Error searching Discogs:", error);
+    return null;
+  }
+}
+
+/**
  * Fetches album art for a given artist and album.
  * @param artist The artist's name.
  * @param album The album's title.
@@ -456,10 +565,19 @@ export async function fetchAlbumArt(
   const mbid = await searchMusicBrainz(artist, album);
 
   if (mbid) {
-    return await getAlbumCover(mbid);
+    const coverArtResult = await getAlbumCover(mbid);
+    if (coverArtResult) {
+      return coverArtResult;
+    } else {
+      console.log(
+        "No cover art found in Cover Art Archive, trying Discogs as fallback..."
+      );
+      return await searchDiscogsForAlbumArt(artist, album);
+    }
+  } else {
+    console.log("No MBID found, trying Discogs as fallback...");
+    return await searchDiscogsForAlbumArt(artist, album);
   }
-
-  return null;
 }
 
 /**

@@ -92,10 +92,24 @@
                   View Jobs
                 </Button>
               </NuxtLink>
+                <Button
+                  size="large"
+                  severity="secondary"
+                  class="summary__actions-button"
+                  :loading="fetchingAlbumArt"
+                  @click="handleFetchAlbumArt"
+                >
+                  Fetch Album Art
+                </Button>
             </div>
           </div>
         </template>
       </Card>
+        <div v-if="fetchAlbumArtResult" class="summary__result">
+          <Message :severity="fetchAlbumArtResult.severity" :closable="false">
+            {{ fetchAlbumArtResult.message }}
+          </Message>
+        </div>
       <div class="metadata__panel">
         <div class="metadata__files">
           <Card class="card">
@@ -417,6 +431,37 @@ const {
   processYouTubeUrl,
   getPlaylistInfo,
 } = useApi();
+
+const fetchingAlbumArt = ref(false);
+const fetchAlbumArtResult = ref(null);
+
+const handleFetchAlbumArt = async () => {
+  fetchAlbumArtResult.value = null;
+  fetchingAlbumArt.value = true;
+  try {
+    const response = await fetch(`${apiBase}/fetch-album-art`, {
+      method: "POST",
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      fetchAlbumArtResult.value = {
+        severity: "error",
+        message: data?.message || "Failed to fetch album art",
+      };
+    } else {
+      fetchAlbumArtResult.value = {
+        severity: "success",
+        message: data?.message || "Album art fetch started!",
+      };
+    }
+  } catch (error) {
+    fetchAlbumArtResult.value = {
+      severity: "error",
+      message: error?.message || "Failed to fetch album art",
+    };
+  }
+  fetchingAlbumArt.value = false;
+};
 
 const isMobile = () => window?.innerWidth || 100000 < 768;
 

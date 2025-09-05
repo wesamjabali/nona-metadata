@@ -24,6 +24,14 @@ if (!apiKeyEnv) {
 }
 export const apiKey: string = apiKeyEnv;
 
+const discogsApiKeyEnv = process.env.DISCOGS_API_KEY;
+if (!discogsApiKeyEnv) {
+  console.warn(
+    "DISCOGS_API_KEY environment variable not set. Discogs fallback will be disabled."
+  );
+}
+export const discogsApiKey: string | undefined = discogsApiKeyEnv;
+
 export const modelName = "gemini-2.5-flash";
 
 // System instruction for the AI model
