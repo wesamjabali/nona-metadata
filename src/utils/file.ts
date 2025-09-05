@@ -2,7 +2,10 @@ import { promises as fs } from "fs";
 import { mkdir } from "fs/promises";
 import { join } from "path";
 import { baseDirectory, pathNormalization } from "../config/constants.js";
-import { findExistingArtistFolder, findExistingAlbumFolder } from "./caseInsensitiveMatching.js";
+import {
+  findExistingAlbumFolder,
+  findExistingArtistFolder,
+} from "./caseInsensitiveMatching.js";
 
 /**
  * Clean up orphaned temporary files on startup
@@ -138,12 +141,7 @@ export async function getAlbumArtPath(
   const actualArtist = await findExistingArtistFolder(artist);
   const actualAlbum = await findExistingAlbumFolder(actualArtist, album);
 
-  const basePath = join(
-    baseDirectory,
-    actualArtist,
-    actualAlbum,
-    "cover"
-  );
+  const basePath = join(baseDirectory, actualArtist, actualAlbum, "cover");
 
   console.log(`Album art base path: ${basePath}`);
 
@@ -188,7 +186,10 @@ export function isPlaylistUrl(url: string): boolean {
  * @param album The album name.
  * @returns The directory path where the album's files should be stored.
  */
-export async function getAlbumDirectoryPath(artist: string, album: string): Promise<string> {
+export async function getAlbumDirectoryPath(
+  artist: string,
+  album: string
+): Promise<string> {
   const actualArtist = await findExistingArtistFolder(artist);
   const actualAlbum = await findExistingAlbumFolder(actualArtist, album);
 

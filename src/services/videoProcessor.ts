@@ -3,15 +3,14 @@ import { promises as fs } from "fs";
 import { join } from "path";
 import { baseDirectory, bufferSizes } from "../config/constants.js";
 import type { MetaData } from "../types/metadata.js";
+import { getCaseMatchedOrganizedPath } from "../utils/caseInsensitiveMatching.js";
 import { executeCommand } from "../utils/command.js";
 import {
   ensureDirectory,
   findExistingAlbumArt,
   getAlbumArtPath,
-  getOrganizedFilePath,
   sanitizeFileName,
 } from "../utils/file.js";
-import { getCaseMatchedOrganizedPath } from "../utils/caseInsensitiveMatching.js";
 import { getExistingAlbumGenre } from "../utils/genreUtils.js";
 import { generateContentWithRetry } from "./ai.js";
 import { fetchAlbumArt, saveAlbumArt } from "./albumArt.js";
@@ -188,7 +187,7 @@ export async function processVideo(
       cachedMetadata.album || "Unknown Album",
       cachedMetadata.title
     );
-    
+
     const finalFilePath = caseMatchedPath.filePath;
     if (await fs.exists(finalFilePath)) {
       console.log(`Video is already processed (cached): ${finalFilePath}`);
@@ -383,7 +382,7 @@ Release Year: ${videoInfo.release_year || "N/A"}
       aiVideoData.album || "Unknown Album",
       aiVideoData.title
     );
-    
+
     // Update metadata to match actual folder structure
     aiVideoData.artist = caseMatchedPath.actualArtist;
     aiVideoData.album = caseMatchedPath.actualAlbum;

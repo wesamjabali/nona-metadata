@@ -8,31 +8,35 @@ import { sanitizeFileName } from "./file.js";
  * @param artist The artist name to search for.
  * @returns The actual folder name if found, or the sanitized artist name if not found.
  */
-export async function findExistingArtistFolder(artist: string): Promise<string> {
+export async function findExistingArtistFolder(
+  artist: string
+): Promise<string> {
   const sanitizedArtist = sanitizeFileName(artist) || "Unknown Artist";
-  
+
   try {
     const entries = await fs.readdir(baseDirectory, { withFileTypes: true });
     const folders = entries
-      .filter(entry => entry.isDirectory())
-      .map(entry => entry.name);
-    
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+
     // First try exact match
-    const exactMatch = folders.find(folder => folder === sanitizedArtist);
+    const exactMatch = folders.find((folder) => folder === sanitizedArtist);
     if (exactMatch) {
       return exactMatch;
     }
-    
+
     // Then try case-insensitive match
-    const caseInsensitiveMatch = folders.find(folder => 
-      folder.toLowerCase() === sanitizedArtist.toLowerCase()
+    const caseInsensitiveMatch = folders.find(
+      (folder) => folder.toLowerCase() === sanitizedArtist.toLowerCase()
     );
-    
+
     if (caseInsensitiveMatch) {
-      console.log(`Case-insensitive artist match: "${sanitizedArtist}" -> "${caseInsensitiveMatch}"`);
+      console.log(
+        `Case-insensitive artist match: "${sanitizedArtist}" -> "${caseInsensitiveMatch}"`
+      );
       return caseInsensitiveMatch;
     }
-    
+
     // No match found, return sanitized artist name for new folder
     return sanitizedArtist;
   } catch (error) {
@@ -54,32 +58,34 @@ export async function findExistingAlbumFolder(
   if (!album) {
     return "Unknown Album";
   }
-  
+
   const sanitizedAlbum = sanitizeFileName(album);
   const artistPath = join(baseDirectory, existingArtistFolder);
-  
+
   try {
     const entries = await fs.readdir(artistPath, { withFileTypes: true });
     const folders = entries
-      .filter(entry => entry.isDirectory())
-      .map(entry => entry.name);
-    
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+
     // First try exact match
-    const exactMatch = folders.find(folder => folder === sanitizedAlbum);
+    const exactMatch = folders.find((folder) => folder === sanitizedAlbum);
     if (exactMatch) {
       return exactMatch;
     }
-    
+
     // Then try case-insensitive match
-    const caseInsensitiveMatch = folders.find(folder => 
-      folder.toLowerCase() === sanitizedAlbum.toLowerCase()
+    const caseInsensitiveMatch = folders.find(
+      (folder) => folder.toLowerCase() === sanitizedAlbum.toLowerCase()
     );
-    
+
     if (caseInsensitiveMatch) {
-      console.log(`Case-insensitive album match: "${sanitizedAlbum}" -> "${caseInsensitiveMatch}"`);
+      console.log(
+        `Case-insensitive album match: "${sanitizedAlbum}" -> "${caseInsensitiveMatch}"`
+      );
       return caseInsensitiveMatch;
     }
-    
+
     // No match found, return sanitized album name for new folder
     return sanitizedAlbum;
   } catch (error) {
@@ -105,17 +111,17 @@ export async function getCaseMatchedOrganizedPath(
   actualAlbum: string;
 }> {
   const sanitizedTitle = sanitizeFileName(title) || "Unknown Title";
-  
+
   const actualArtist = await findExistingArtistFolder(artist);
   const actualAlbum = await findExistingAlbumFolder(actualArtist, album);
-  
+
   const filePath = join(
     baseDirectory,
     actualArtist,
     actualAlbum,
     `${sanitizedTitle}.m4a`
   );
-  
+
   return {
     filePath,
     actualArtist,
