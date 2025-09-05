@@ -88,11 +88,11 @@
             <Column field="progress" header="Progress">
               <template #body="slotProps">
                 <div
-                  v-if="slotProps.data.progress !== undefined"
+                  v-if="slotProps.data.progress !== undefined || slotProps.data.status === 'completed'"
                   class="progress__container"
                 >
                   <ProgressBar
-                    :value="slotProps.data.progress"
+                    :value="slotProps.data.status === 'completed' ? 100 : slotProps.data.progress"
                     :show-value="true"
                     class="progress__bar"
                   />
@@ -366,7 +366,7 @@ const getStatusSeverity = (status: string): string => {
     case "failed":
       return "danger";
     case "stopped":
-      return "secondary";
+      return "danger";
     default:
       return "secondary";
   }
