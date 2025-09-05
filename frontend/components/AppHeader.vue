@@ -1,8 +1,8 @@
 <template>
-  <Menubar :model="menuItems" class="header-menubar">
+  <Menubar :model="menuItems" class="header">
     <template #start>
-      <NuxtLink to="/" class="brand-link">
-        <span class="brand-text">nona-metadata</span>
+      <NuxtLink to="/" class="header__brand">
+        <span class="header__brand-text">nona-metadata</span>
       </NuxtLink>
     </template>
   </Menubar>
@@ -35,29 +35,36 @@ const menuItems = [
 ];
 </script>
 
-<style scoped>
-.header-menubar {
+<style lang="scss" scoped>
+.header {
   padding: 0.5rem 1rem;
+
+  &__brand {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: bold;
+    font-size: 1.25rem;
+    text-decoration: none;
+
+    &-text {
+      margin-left: 0.5rem;
+    }
+  }
 }
-.brand-link {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-weight: bold;
-  font-size: 1.25rem;
-  text-decoration: none;
-}
-.brand-text {
-  margin-left: 0.5rem;
-}
-:deep(.p-menubar .p-menubar-start) {
-  margin-right: auto;
-}
-:deep(.p-menubar .p-menuitem-link) {
-  padding: 0.75rem 1rem;
-  border-radius: 6px;
-}
-:deep(.p-menubar .p-menuitem-icon) {
-  margin-right: 0.5rem;
+
+:deep(.p-menubar) {
+  .p-menubar-start {
+    margin-right: auto;
+  }
+
+  .p-menuitem-link {
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+  }
+
+  .p-menuitem-icon {
+    margin-right: 0.5rem;
+  }
 }
 </style>

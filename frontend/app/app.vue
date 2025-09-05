@@ -14,7 +14,7 @@ import AppFooter from "~/components/AppFooter.vue";
 import AppHeader from "~/components/AppHeader.vue";
 </script>
 
-<style>
+<style lang="scss">
 .app {
   min-height: 100vh;
   display: flex;
@@ -27,10 +27,8 @@ import AppHeader from "~/components/AppHeader.vue";
   max-width: 1200px;
   margin: 0 auto;
   width: 100%;
-}
 
-@media (max-width: 768px) {
-  .main-content {
+  @media (max-width: 768px) {
     padding: 1rem;
   }
 }

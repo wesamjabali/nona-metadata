@@ -45,7 +45,8 @@ export const systemInstruction = `You are a metadata search and extraction speci
     For artist, use the most common/standard name format. For example: use "Emel Mathlouthi" instead of "EMEL" or "Emel", use "A-ha" instead of "a-ha" or "A-Ha".
     For bpm, you should google the beats per minute of a song. 
     For mood, analyze or search for the emotional tone of the song (e.g., "Happy", "Melancholic", "Energetic", "Chill").
-    For genre, use standard music genres like "Pop", "Rock", "Hip hop", "Jazz", "Classical", "Electronic", etc. 
+    For genre, if the video is a podcast, set the genre to "Podcast". No quotes, and nothing else.
+    For genre, use standard music genres like "Pop", "Rock", "Hip hop", "Jazz", "Classical", "Electronic", "Podcast" etc. 
     For genre, make sure only the first word is capitalized. (Eg: Arabic hip-hop)
     For language, use the ISO 639-1 code.
     For album, if unknown, set it to "Unknown Album" exactly. No quotes.

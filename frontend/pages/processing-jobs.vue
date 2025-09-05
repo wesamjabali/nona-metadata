@@ -1,20 +1,20 @@
 <template>
-  <div class="page-container">
-    <div class="jobs-header">
-      <h1 class="jobs-title">Processing Jobs</h1>
+  <div class="page">
+    <div class="jobs__header">
+      <h1 class="jobs__title">Processing Jobs</h1>
       <Button severity="secondary" @click="refreshJobs">Refresh</Button>
     </div>
 
-    <div v-if="error" class="margin-bottom-6">
+    <div v-if="error" class="page__error">
       <Message severity="error" :closable="false">
         {{ error }}
       </Message>
     </div>
 
     <div v-else>
-      <Card class="shadow-lg">
+      <Card class="card">
         <template #title>
-          <h2 class="text-xl font-semibold">All Jobs</h2>
+          <h2 class="card__title">All Jobs</h2>
         </template>
         <template #content>
           <DataTable
@@ -32,7 +32,7 @@
           <Column expander style="width: 5rem" />
           <Column field="type" header="Type" sortable>
               <template #body="slotProps">
-                <div class="flex items-center gap-2">
+                <div class="job-details__type-container">
                   <span>
                     {{
                       slotProps.data.type === "playlist"
@@ -48,7 +48,7 @@
 
             <Column field="title" header="Title" sortable>
               <template #body="slotProps">
-                <div v-if="getJobTitle(slotProps.data)" class="text-sm">
+                <div v-if="getJobTitle(slotProps.data)" class="job-details__text">
                   <span :title="getJobTitle(slotProps.data)">
                     {{
                       getJobTitle(slotProps.data).length > 60
@@ -57,7 +57,7 @@
                     }}
                   </span>
                 </div>
-                <span v-else class="text-gray-400 text-sm">-</span>
+                <span v-else class="job-details__missing">-</span>
               </template>
             </Column>
 
@@ -66,13 +66,13 @@
                 <div v-if="slotProps.data.url">
                   <Button
                     icon="pi pi-external-link"
-                    class="p-button-text p-button-sm mr-2"
+                    class="p-button-text p-button-sm job-details__link"
                     style="width: 100%"
                     :aria-label="'Open URL: ' + slotProps.data.url"
                     @click="openUrl(slotProps.data.url)"
                   />
                 </div>
-                <span v-else class="text-gray-400 text-sm">-</span>
+                <span v-else class="job-details__missing">-</span>
               </template>
             </Column>
 
@@ -89,21 +89,21 @@
               <template #body="slotProps">
                 <div
                   v-if="slotProps.data.progress !== undefined"
-                  class="flex items-center gap-2"
+                  class="progress__container"
                 >
                   <ProgressBar
                     :value="slotProps.data.progress"
                     :show-value="true"
-                    class="w-20"
+                    class="progress__bar"
                   />
                 </div>
-                <span v-else class="text-gray-400">-</span>
+                <span v-else class="job-details__missing">-</span>
               </template>
             </Column>
 
             <Column field="startTime" header="Created" sortable>
               <template #body="slotProps">
-                <span class="text-sm">{{
+                <span class="job-details__text">{{
                   formatDate(slotProps.data.startTime)
                 }}</span>
               </template>
@@ -114,9 +114,9 @@
                 v-if="
                   slotProps.data.type === 'playlist' && slotProps.data.results
                 "
-                class="p-4"
+                class="expansion__container"
               >
-                <h4 class="text-lg font-semibold mb-3 text-white">
+                <h4 class="expansion__title">
                   Playlist Videos ({{ slotProps.data.results.length }})
                 </h4>
                 <DataTable
@@ -130,7 +130,7 @@
                 >
                   <Column field="title" header="Title" sortable>
                     <template #body="videoSlot">
-                      <div class="text-sm" :title="videoSlot.data.title">
+                      <div class="video-details__title" :title="videoSlot.data.title">
                         {{
                           videoSlot.data.title.length > 80
                             ? videoSlot.data.title.substring(0, 80) + "..."
@@ -142,7 +142,7 @@
 
                   <Column field="artist" header="Artist" sortable>
                     <template #body="videoSlot">
-                      <div class="text-sm">
+                      <div class="video-details__artist">
                         {{ videoSlot.data.artist || "-" }}
                       </div>
                     </template>
@@ -150,7 +150,7 @@
 
                   <Column field="album" header="Album" sortable>
                     <template #body="videoSlot">
-                      <div class="text-sm">
+                      <div class="video-details__album">
                         {{ videoSlot.data.album || "-" }}
                       </div>
                     </template>
@@ -158,7 +158,7 @@
 
                   <Column field="duration" header="Duration">
                     <template #body="videoSlot">
-                      <div class="text-sm">
+                      <div class="video-details__duration">
                         {{
                           videoSlot.data.duration
                             ? formatDuration(videoSlot.data.duration)
@@ -170,7 +170,7 @@
 
                   <Column field="genre" header="Genre">
                     <template #body="videoSlot">
-                      <div class="text-sm">
+                      <div class="video-details__genre">
                         {{ videoSlot.data.genre || "-" }}
                       </div>
                     </template>
@@ -180,16 +180,16 @@
                     <template #body="videoSlot">
                       <div
                         v-if="videoSlot.data.albumArtPath"
-                        style="display: flex; width: 100%; justify-content: center; align-items: center;"
+                        class="album-art__button-container"
                       >
                         <Button 
-                    class="p-button-text p-button-sm mr-2"
+                    class="p-button-text p-button-sm album-art__button"
                         
                         style="width: 100%" @click="viewAlbumArt(videoSlot.data.artist, videoSlot.data.album)"><i class="pi pi-image" /></Button>
 
                       </div>
-                      <div v-else class="flex items-center">
-                        <i class="pi pi-times text-gray-400"/>
+                      <div v-else class="album-art__missing">
+                        <i class="pi pi-times album-art__missing-icon"/>
                       </div>
                     </template>
                   </Column>
@@ -200,62 +200,62 @@
                 v-else-if="
                   slotProps.data.type === 'single' && slotProps.data.results
                 "
-                class="p-4"
+                class="expansion__container"
               >
-                <h4 class="text-lg font-semibold mb-3 text-white">
+                <h4 class="expansion__title">
                   Video Details
                 </h4>
                 <div
                   v-if="slotProps.data.results.length > 0"
-                  class="grid grid-cols-2 gap-4"
+                  class="video-details__grid"
                 >
-                  <div v-for="field in videoFields" :key="field.key" class="space-y-1">
-                    <div class="flex justify-between space-x-1">
-                      <strong class="text-white">{{ field.label }}:</strong>
-                      <span class="text-gray-300">{{ getFieldValue(slotProps.data.results[0], field) }}</span>
+                  <div v-for="field in videoFields" :key="field.key" class="video-details__field">
+                    <div class="video-details__label">
+                      <strong class="video-details__label-text">{{ field.label }}:</strong>
+                      <span class="video-details__value">{{ getFieldValue(slotProps.data.results[0], field) }}</span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div v-else-if="slotProps.data.type === 'album-art'" class="p-4">
-                <h4 class="text-lg font-semibold mb-3 text-white">
+              <div v-else-if="slotProps.data.type === 'album-art'" class="expansion__container">
+                <h4 class="expansion__title">
                   Album Art Processing Results
                 </h4>
                 <div
                   v-if="slotProps.data.albumArtResults"
-                  class="grid grid-cols-4 gap-4"
+                  class="album-art__results-grid"
                 >
-                  <div class="text-center">
-                    <div class="text-2xl font-bold text-blue-400">
+                  <div class="album-art__stat">
+                    <div class="album-art__stat-number album-art__stat-number--blue">
                       {{ slotProps.data.albumArtResults.processed }}
                     </div>
-                    <div class="text-sm text-gray-400">Processed</div>
+                    <div class="album-art__stat-label">Processed</div>
                   </div>
-                  <div class="text-center">
-                    <div class="text-2xl font-bold text-green-400">
+                  <div class="album-art__stat">
+                    <div class="album-art__stat-number album-art__stat-number--green">
                       {{ slotProps.data.albumArtResults.fetched }}
                     </div>
-                    <div class="text-sm text-gray-400">Fetched</div>
+                    <div class="album-art__stat-label">Fetched</div>
                   </div>
-                  <div class="text-center">
-                    <div class="text-2xl font-bold text-yellow-400">
+                  <div class="album-art__stat">
+                    <div class="album-art__stat-number album-art__stat-number--yellow">
                       {{ slotProps.data.albumArtResults.existed }}
                     </div>
-                    <div class="text-sm text-gray-400">Already Existed</div>
+                    <div class="album-art__stat-label">Already Existed</div>
                   </div>
-                  <div class="text-center">
-                    <div class="text-2xl font-bold text-red-400">
+                  <div class="album-art__stat">
+                    <div class="album-art__stat-number album-art__stat-number--red">
                       {{ slotProps.data.albumArtResults.errors }}
                     </div>
-                    <div class="text-sm text-gray-400">Errors</div>
+                    <div class="album-art__stat-label">Errors</div>
                   </div>
                 </div>
               </div>
             </template>
           </DataTable>
 
-          <div v-if="jobs.length === 0" class="text-center py-8 text-gray-500">
+          <div v-if="jobs.length === 0" class="jobs__empty-state">
             <p>No jobs found</p>
           </div>
         </template>
@@ -418,216 +418,67 @@ onMounted(() => {
 });
 </script>
 
-<style scoped>
-.page-container {
-  display: flex;
-  flex-direction: column;
-}
-
-.jobs-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.jobs-title {
-  font-size: 1.875rem;
-  line-height: 2.25rem;
-  font-weight: 700;
-  color: white;
-}
-
-.text-center {
-  text-align: center;
-}
-.padding-y-8 {
-  padding-top: 2rem;
-  padding-bottom: 2rem;
-}
-.text-gray-600 {
-  color: #4b5563;
-}
-.margin-bottom-6 {
-  margin-bottom: 1.5rem;
-}
-.shadow-lg {
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
-    0 4px 6px -2px rgba(0, 0, 0, 0.05);
-}
-.text-3xl {
-  font-size: 1.875rem;
-  line-height: 2.25rem;
-}
-.font-bold {
-  font-weight: 700;
-}
-.text-blue-600 {
-  color: #2563eb;
-}
-.text-yellow-600 {
-  color: #d97706;
-}
-.text-green-600 {
-  color: #16a34a;
-}
-.text-xl {
-  font-size: 1.25rem;
-  line-height: 1.75rem;
-}
-.font-semibold {
-  font-weight: 600;
-}
-.text-sm {
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-}
-.text-gray-400 {
-  color: #9ca3af;
-}
-.text-gray-500 {
-  color: #6b7280;
-}
-.py-8 {
-  padding-top: 2rem;
-  padding-bottom: 2rem;
-}
-.margin-top-3 {
-  margin-top: 0.75rem;
-}
-.text-blue-600 {
-  color: #2563eb;
-}
-.hover\:text-blue-800:hover {
-  color: #1d4ed8;
-}
-.underline {
-  text-decoration: underline;
-}
-.w-20 {
-  width: 5rem;
-}
-.grid {
-  display: grid;
-}
-.grid-cols-2 {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-.grid-cols-4 {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-.gap-4 {
-  gap: 1rem;
-}
-.space-y-2 > * + * {
-  margin-top: 0.5rem;
-}
-.space-x-1 > * + * {
-  margin-left: 0.25rem;
-}
-.flex {
-  display: flex;
-}
-.items-center {
-  align-items: center;
-}
-.gap-2 {
-  gap: 0.5rem;
-}
-.ml-2 {
-  margin-left: 0.5rem;
-}
-.mb-3 {
-  margin-bottom: 0.75rem;
-}
-.text-lg {
-  font-size: 1.125rem;
-  line-height: 1.75rem;
-}
-.text-2xl {
-  font-size: 1.5rem;
-  line-height: 2rem;
-}
-.font-bold {
-  font-weight: 700;
-}
-.text-center {
-  text-align: center;
-}
-.text-white {
-  color: white;
-}
-.text-gray-300 {
-  color: #d1d5db;
-}
-.text-gray-400 {
-  color: #9ca3af;
-}
-.text-blue-400 {
-  color: #60a5fa;
-}
-.text-green-400 {
-  color: #34d399;
-}
-.text-green-500 {
-  color: #10b981;
-}
-.text-yellow-400 {
-  color: #fbbf24;
-}
-.text-red-400 {
-  color: #f87171;
-}
-
+<style lang="scss" scoped>
 /* Mobile responsive adjustments */
 @media (max-width: 767px) {
-  .jobs-header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 1rem;
-  }
-  
-  .jobs-title {
-    font-size: 1.5rem;
-    margin-bottom: 0;
+  .jobs {
+    &__header {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 1rem;
+    }
+    
+    &__title {
+      font-size: 1.5rem;
+      margin-bottom: 0;
+    }
   }
   
   /* Make DataTable more mobile-friendly */
-  .p-datatable .p-datatable-wrapper {
-    overflow-x: auto;
-  }
-  
-  .p-datatable .p-datatable-thead > tr > th,
-  .p-datatable .p-datatable-tbody > tr > td {
-    padding: 0.5rem 0.25rem;
-    font-size: 0.875rem;
-    min-width: 120px;
+  .p-datatable {
+    .p-datatable-wrapper {
+      overflow-x: auto;
+    }
+    
+    .p-datatable-thead > tr > th,
+    .p-datatable-tbody > tr > td {
+      padding: 0.5rem 0.25rem;
+      font-size: 0.875rem;
+      min-width: 120px;
+    }
+
+    &-sm .p-datatable-tbody > tr > td {
+      padding: 0.25rem;
+      font-size: 0.75rem;
+    }
   }
   
   /* Adjust grid layouts for mobile */
-  .grid-cols-2 {
-    grid-template-columns: repeat(1, minmax(0, 1fr));
+  .video-details {
+    &__grid {
+      grid-template-columns: repeat(1, minmax(0, 1fr));
+    }
   }
   
-  .grid-cols-4 {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .album-art {
+    &__results-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
   }
   
   /* Progress bar adjustments */
-  .w-20 {
-    width: 100%;
-    min-width: 80px;
+  .progress {
+    &__bar {
+      width: 100%;
+      min-width: 80px;
+    }
   }
   
   /* Text truncation for mobile */
-  .text-sm {
-    font-size: 0.75rem;
-  }
-  
-  /* Compact nested tables */
-  .p-datatable-sm .p-datatable-tbody > tr > td {
-    padding: 0.25rem;
-    font-size: 0.75rem;
+  .text {
+    &--sm {
+      font-size: 0.75rem;
+    }
   }
 }
 </style>

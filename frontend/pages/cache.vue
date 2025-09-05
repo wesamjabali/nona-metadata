@@ -1,22 +1,22 @@
 <template>
-  <div class="page-container stack">
-    <div class="cache-header">
-      <h1 class="cache-title">Cache Management</h1>
+  <div class="page">
+    <div class="page__header">
+      <h1 class="page__title">Cache Management</h1>
       <Button severity="secondary" @click="refreshStats">
         Refresh Stats
       </Button>
     </div>
 
-    <div class="cache-grid">
+    <div class="cache__section">
       <!-- Cache Statistics -->
-      <Card class="shadow-lg">
+      <Card class="card">
         <template #title>
-          <h2 class="text-xl font-semibold">Cache Statistics</h2>
+          <h2 class="card__title">Cache Statistics</h2>
         </template>
         <template #content>
-          <div v-if="loadingStats" class="text-center py-8">
+          <div v-if="loadingStats" class="cache__stats-loading">
             <ProgressSpinner />
-            <p class="mt-4 text-gray-600">Loading statistics...</p>
+            <p class="cache__stats-loading-text">Loading statistics...</p>
           </div>
 
           <div v-else-if="statsError">
@@ -27,17 +27,17 @@
 
           <div
             v-else-if="cacheStats"
-            class="stats-grid"
+            class="stats__grid"
           >
             <div
               v-for="(value, key) in cacheStats"
               :key="key"
-              class="stat-item"
+              class="stats__item"
             >
-              <div class="stat-label">
+              <div class="stats__label">
                 {{ formatStatLabel(key) }}
               </div>
-              <div class="stat-value">
+              <div class="stats__value">
                 {{ formatStatValue(key, value) }}
               </div>
             </div>
@@ -46,16 +46,16 @@
       </Card>
 
       <!-- Cache Cleanup -->
-      <Card class="shadow-lg">
+      <Card class="card">
         <template #title>
-          <h2 class="text-xl font-semibold">Cache Cleanup</h2>
+          <h2 class="card__title">Cache Cleanup</h2>
         </template>
         <template #content>
-          <form class="cleanup-form" @submit.prevent="performCleanup">
-            <div>
+          <form class="cache__cleanup-form" @submit.prevent="performCleanup">
+            <div class="cache__cleanup-field">
               <label
                 for="days-old"
-                class="cleanup-label"
+                class="cache__cleanup-label"
               >
                 Delete entries older than (days)
               </label>
@@ -65,10 +65,10 @@
                 :min="0"
                 :max="365"
                 placeholder="30"
-                class="w-full"
+                class="cache__cleanup-input"
                 suffix=" days"
               />
-              <small class="cleanup-help"
+              <small class="cache__cleanup-help"
                 >Set to 0 to delete all entries</small
               >
             </div>
@@ -77,7 +77,7 @@
               type="submit"
               :loading="performingCleanup"
               severity="danger"
-              class="w-full"
+              class="cache__cleanup-submit"
             >
               {{ performingCleanup ? "Cleaning..." : "Perform Cleanup" }}
             </Button>
@@ -87,7 +87,7 @@
             v-if="cleanupResult"
             :severity="cleanupResult.severity"
             :closable="false"
-            class="mt-4"
+            class="cache__cleanup-result"
           >
             <i :class="cleanupResult.icon" />
             {{ cleanupResult.message }}
@@ -97,26 +97,26 @@
     </div>
 
     <!-- Cache Information -->
-    <Card class="shadow-lg">
+    <Card class="card">
       <template #title>
-        <h2 class="text-xl font-semibold">Cache Information</h2>
+        <h2 class="card__title">Cache Information</h2>
       </template>
       <template #content>
-        <div class="space-y-6">
-          <div>
-            <h3 class="text-lg font-medium text-gray-800 mb-2">
+        <div class="cache__info-grid">
+          <div class="cache__info-section">
+            <h3 class="cache__info-title">
               What is the cache?
             </h3>
-            <p class="text-gray-600">
+            <p class="cache__info-content">
               The cache stores metadata and processing information to improve
               performance and reduce API calls to external services like YouTube
               and music databases.
             </p>
           </div>
 
-          <div>
-            <h3 class="text-lg font-medium text-gray-800 mb-2">Cache types:</h3>
-            <ul class="text-gray-600 space-y-1">
+          <div class="cache__info-section">
+            <h3 class="cache__info-title">Cache types:</h3>
+            <ul class="cache__info-list">
               <li>
                 <strong>YouTube data:</strong> Video and playlist information
               </li>
@@ -128,11 +128,11 @@
             </ul>
           </div>
 
-          <div>
-            <h3 class="text-lg font-medium text-gray-800 mb-2">
+          <div class="cache__info-section">
+            <h3 class="cache__info-title">
               Why clean the cache?
             </h3>
-            <ul class="text-gray-600 space-y-1">
+            <ul class="cache__info-list">
               <li>Remove outdated information</li>
               <li>Free up disk space</li>
               <li>Ensure fresh data from external services</li>
@@ -231,114 +231,53 @@ onMounted(() => {
 });
 </script>
 
-<style scoped>
-.cache-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.cache-title {
-  font-size: 1.875rem;
-  line-height: 2.25rem;
-  font-weight: 700;
-  color: white;
-}
-
-.cache-grid {
-  display: grid;
-  grid-template-columns: repeat(1, minmax(0, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 1.5rem;
+<style lang="scss" scoped>
+/* Mobile-specific adjustments */
+@media (max-width: 767px) {
+  .page {
+    &__header {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 1rem;
+    }
+    
+    &__title {
+      font-size: 1.5rem;
+      margin-bottom: 0;
+    }
+  }
+  
+  .grid {
+    &--cols-1 {
+      gap: 0.75rem;
+    }
+  }
+  
+  .stats {
+    &__grid {
+      grid-template-columns: repeat(1, minmax(0, 1fr));
+      gap: 0.75rem;
+    }
+    
+    &__item {
+      padding: 0.75rem;
+    }
+    
+    &__label {
+      font-size: 0.75rem;
+    }
+    
+    &__value {
+      font-size: 1.125rem;
+    }
+  }
 }
 
 @media (min-width: 768px) {
-  .cache-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(1, minmax(0, 1fr));
-  gap: 1rem;
-}
-
-@media (min-width: 640px) {
-  .stats-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-.stat-item {
-  text-align: center;
-  padding: 1rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 0.5rem;
-}
-
-.stat-label {
-  font-size: 0.875rem;
-  color: #6b7280;
-  margin-bottom: 0.25rem;
-}
-
-.stat-value {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: #2563eb;
-}
-
-.cleanup-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.cleanup-label {
-  display: block;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #374151;
-  margin-bottom: 0.5rem;
-}
-
-.cleanup-help {
-  color: #6b7280;
-  font-size: 0.75rem;
-  margin-top: 0.25rem;
-  display: block;
-}
-
-/* Mobile-specific adjustments */
-@media (max-width: 767px) {
-  .cache-header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 1rem;
-  }
-  
-  .cache-title {
-    font-size: 1.5rem;
-    margin-bottom: 0;
-  }
-  
-  .stats-grid {
-    grid-template-columns: repeat(1, minmax(0, 1fr));
-    gap: 0.75rem;
-  }
-  
-  .stat-item {
-    padding: 0.75rem;
-  }
-  
-  .stat-label {
-    font-size: 0.75rem;
-  }
-  
-  .stat-value {
-    font-size: 1.125rem;
+  .grid {
+    &--cols-1 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
   }
 }
 </style>

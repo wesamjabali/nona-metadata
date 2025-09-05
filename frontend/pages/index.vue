@@ -1,98 +1,94 @@
 <template>
-  <div class="page-container">
-    <div style="width: 100% !important; margin-bottom: 1.5rem">
-      <Card>
-        <template #title>
-          <h2 class="text-xl font-semibold">Process YouTube Content</h2>
-        </template>
-        <template #content>
-          <form
-            style="display: flex; gap: 1.5rem; flex-direction: column"
-            @submit.prevent="handleSubmitYoutubeLink"
+  <div class="page">
+    <Card>
+      <template #title>
+        <h2 class="card__title">Process YouTube Content</h2>
+      </template>
+      <template #content>
+        <form
+          class="process-form"
+          @submit.prevent="handleSubmitYoutubeLink"
+        >
+          <div class="process-form__group">
+            <label for="youtube-url" class="process-form__label"> YouTube URL </label>
+            <InputText
+              id="youtube-url"
+              v-model="youtubeUrl"
+              type="url"
+              placeholder="https://www.youtube.com/watch?v=..."
+              class="process-form__input"
+              required
+            />
+          </div>
+
+          <div class="process-form__checkbox-group">
+            <Checkbox
+              v-model="processAsPlaylist"
+              input-id="process-playlist"
+              :binary="true"
+            />
+            <label for="process-playlist" class="process-form__checkbox-label">Process as playlist</label>
+          </div>
+
+          <Button
+            type="submit"
+            :loading="isProcessing"
+            :disabled="!youtubeUrl"
+            class="process-form__submit"
+            severity="success"
           >
-            <div>
-              <label for="youtube-url"> YouTube URL </label>
-              <InputText
-                id="youtube-url"
-                v-model="youtubeUrl"
-                type="url"
-                placeholder="https://www.youtube.com/watch?v=..."
-                style="width: 100%"
-                required
-              />
-            </div>
+            {{ isProcessing ? "Processing..." : "Start Processing" }}
+          </Button>
+        </form>
 
-            <div>
-              <Checkbox
-                id="process-playlist"
-                v-model="processAsPlaylist"
-                :binary="true"
-              />
-              <label for="process-playlist" style="margin-left: 0.5rem"
-                >Process as playlist</label
-              >
-            </div>
+        <Message
+          v-if="submitResult"
+          :severity="submitResult.severity"
+          :closable="false"
+          class="process-form__result"
+        >
+          <div class="process-form__result-content">
+            <strong class="process-form__result-header">{{ submitResult.title }}</strong>
+            <p class="process-form__result-message">{{ submitResult.message }}</p>
+          </div>
+        </Message>
+      </template>
+    </Card>
 
-            <Button
-              type="submit"
-              :loading="isProcessing"
-              :disabled="!youtubeUrl"
-              class="full-width"
-              severity="success"
-            >
-              {{ isProcessing ? "Processing..." : "Start Processing" }}
-            </Button>
-          </form>
-
-          <Message
-            v-if="submitResult"
-            :severity="submitResult.severity"
-            :closable="false"
-            class="margin-top-4"
-          >
-            <div class="flex-col-gap">
-              <strong>{{ submitResult.title }}</strong>
-              <p>{{ submitResult.message }}</p>
-            </div>
-          </Message>
-        </template>
-      </Card>
-    </div>
-
-    <div v-if="loading" class="text-center padding-y-8">
+    <div v-if="loading" class="page__loading">
       <ProgressSpinner />
-      <p class="margin-top-3 text-gray-600">Loading files...</p>
+      <p class="page__loading-text">Loading files...</p>
     </div>
 
-    <div v-else-if="error" class="margin-bottom-6">
+    <div v-else-if="error" class="page__error">
       <Message severity="error" :closable="false">
         {{ error }}
       </Message>
     </div>
 
     <div v-else>
-      <!-- Left: Files -->
-      <Card class="shadow-lg">
+      <!-- Summary Section -->
+      <Card class="card">
         <template #title>
           <h2>Summary</h2>
         </template>
         <template #content>
-          <div class="summary-grid">
-            <div class="text-center">
-              <div class="text-3xl font-bold">
+          <div class="summary__grid">
+            <div class="summary__metric">
+              <div class="summary__metric-value">
                 {{ filesData.totalFiles }}
               </div>
-              <div>Total Files</div>
+              <div class="summary__metric-label">Total Files</div>
             </div>
-            <div class="text-center break-all">
-              <div class="text-sm font-medium">
+            <div class="summary__directory">
+              <div class="summary__directory-path">
                 {{ filesData.baseDirectory }}
               </div>
-              <div>Base Directory</div>
+              <div class="summary__directory-label">Base Directory</div>
             </div>
-            <div class="text-center">
+            <div class="summary__actions">
               <NuxtLink to="/processing-jobs">
-                <Button size="large" severity="secondary" class="jobs-button">
+                <Button size="large" severity="secondary" class="summary__actions-button">
                   View Jobs
                 </Button>
               </NuxtLink>
@@ -100,18 +96,18 @@
           </div>
         </template>
       </Card>
-      <div class="split-panels" style="margin-top: 1.5rem">
-        <div class="primary-column stack">
-          <Card class="shadow-lg">
+      <div class="metadata__panel">
+        <div class="metadata__files">
+          <Card class="card">
             <template #title>
-              <div class="flex-between">
-                <h2 class="text-xl font-semibold">Files</h2>
-                <div class="files-header-controls">
+              <div class="files__header">
+                <h2 class="card__title">Files</h2>
+                <div class="files__controls">
                   <Button
                     v-if="selectedFiles.length > 1"
                     severity="danger"
                     size="small"
-                    class="mobile-mb-2"
+                    class="files__bulk-actions-button mobile-mb-2"
                     @click="showDeleteConfirm = true"
                   >
                     <span class="desktop-text">Bulk Delete ({{ selectedFiles.length }})</span>
@@ -124,8 +120,8 @@
                     @click="refreshFiles"
                     >Refresh</Button
                   >
-                  <div class="multi-select-toggle">
-                    <span class="text-xs">Multi-Select</span>
+                  <div class="files__multiselect">
+                    <span class="files__multiselect-label">Multi-Select</span>
                     <InputSwitch
                       v-model="multiSelectEnabled"
                       @change="onToggleMultiSelect"
@@ -135,14 +131,12 @@
               </div>
             </template>
             <template #content>
-              <div class="flex-col-md-row">
-                <div class="flex-1">
-                  <InputText
-                    v-model="searchQuery"
-                    placeholder="Search files..."
-                    class="full-width"
-                  />
-                </div>
+              <div class="files__search">
+                <InputText
+                  v-model="searchQuery"
+                  placeholder="Search files..."
+                  class="files__search-input"
+                />
               </div>
               <DataTable
                 v-model:selection="tableSelection"
@@ -167,9 +161,9 @@
                 <Column field="path" header="Path">
                   <template #body="slotProps">
                     <div
-                      class="path-cell"
+                      class="datatable__cell"
                       :class="{
-                        active:
+                        'datatable__cell--active':
                           slotProps.data.path === selectedFile ||
                           (multiSelectEnabled &&
                             selectedFiles.some(
@@ -187,13 +181,13 @@
           </Card>
         </div>
 
-        <!-- Right: Metadata Panel -->
-        <div class="meta-panel">
-          <Card class="shadow-lg h-full">
+        <!-- Metadata Panel -->
+        <div class="metadata__sidebar">
+          <Card class="card">
             <template #title>
-              <div class="flex-between-start">
-                <div class="flex-1-mb">
-                  <h2 class="text-lg font-semibold mb-1">
+              <div class="metadata__header">
+                <div class="metadata__info">
+                  <h2 class="metadata__title">
                     {{
                       isMultiFileMode
                         ? `Bulk Metadata (${selectedFiles.length} files)`
@@ -204,15 +198,15 @@
                   </h2>
                   <div
                     v-if="selectedFile && !isMultiFileMode"
-                    class="text-xs break-all"
+                    class="metadata__filepath"
                   >
                     {{ selectedFile }}
                   </div>
-                  <div v-if="isMultiFileMode" class="text-xs text-gray-600">
+                  <div v-if="isMultiFileMode" class="metadata__mode-indicator">
                     Editing {{ selectedFiles.length }} files
                   </div>
                 </div>
-                <div class="flex-row-center">
+                <div class="metadata__actions">
                   <Button
                     v-if="selectedFile"
                     size="small"
@@ -243,13 +237,13 @@
             <template #content>
               <div
                 v-if="!selectedFile && !isMultiFileMode && !metadataLoading"
-                class="text-sm opacity-80"
+                class="metadata__placeholder"
               >
                 Select a file to view and edit its metadata.
               </div>
-              <div v-if="metadataLoading" class="text-center padding-y-6">
+              <div v-if="metadataLoading" class="metadata__loading">
                 <ProgressSpinner />
-                <p class="margin-top-3 text-xs">Loading...</p>
+                <p class="metadata__loading-text">Loading...</p>
               </div>
               <div v-else-if="metadataError">
                 <Message severity="error" :closable="false">{{
@@ -260,25 +254,25 @@
                 v-else-if="selectedFile && isImageFile(selectedFile)"
                 class="image-viewer"
               >
-                <div class="image-container">
+                <div class="image-viewer__container">
                   <img
                     :src="getImageUrl(selectedFile)"
                     :alt="selectedFile"
-                    class="display-image"
+                    class="image-viewer__image"
                     @error="imageError = true"
                   >
-                  <div v-if="imageError" class="image-error">
+                  <div v-if="imageError" class="image-viewer__error">
                     <Message severity="error" :closable="false">
                       Failed to load image
                     </Message>
                   </div>
                 </div>
               </div>
-              <div v-else-if="fileMetadata || isMultiFileMode" class="stack">
+              <div v-else-if="fileMetadata || isMultiFileMode">
                 <!-- Custom Metadata Tags Section -->
-                <div class="custom-tags-section">
-                  <label class="field-label">Add Custom Fields</label>
-                  <div class="tag-chips">
+                <div class="tags__section">
+                  <label class="tags__label">Add Custom Fields</label>
+                  <div class="tags__chips">
                     <Button
                       v-for="tag in availableTags"
                       :key="tag"
@@ -292,20 +286,20 @@
                   </div>
                 </div>
 
-                <div class="meta-fields scrollable-meta-fields">
+                <div class="metadata__form">
                   <div
                     v-for="(value, key) in editableMetadata"
                     :key="key"
-                    class="meta-field"
+                    class="metadata__field"
                   >
-                    <label class="field-label">{{ key }}</label>
+                    <label class="metadata__label">{{ key }}</label>
                     <InputText
                       v-model="editableMetadata[key]"
-                      class="field-input"
+                      class="metadata__input"
                     />
                   </div>
                 </div>
-                <div class="flex-end-gap">
+                <div class="metadata__save">
                   <Button
                     severity="success"
                     :loading="savingMetadata"
@@ -325,7 +319,7 @@
                     }}
                   </Button>
                 </div>
-                <div v-if="saveResult" class="margin-top-1">
+                <div v-if="saveResult" class="metadata__result">
                   <Message :severity="saveResult.severity" :closable="false">{{
                     saveResult.message
                   }}</Message>
@@ -344,32 +338,33 @@
       header="Confirm Deletion"
       :style="{ width: '30rem' }"
     >
-      <p class="margin-bottom-4">
+      <p class="dialog__content">
         Are you sure you want to delete {{ selectedFiles.length }} selected
         file(s)?
       </p>
-      <div class="max-h-40 overflow-y-auto">
+      <div class="dialog__file-list">
         <div
           v-for="file in selectedFiles"
           :key="file.path"
-          class="padding-y-1 border-b-gray"
+          class="dialog__file-item"
         >
           {{ file.path }}
         </div>
       </div>
 
       <template #footer>
-        <Button
-          :loading="deletingFiles"
-          severity="danger"
-          class=""
-          @click="confirmBulkDelete"
-        >
-          Delete Files
-        </Button>
-        <Button severity="secondary" @click="showDeleteConfirm = false">
-          Cancel
-        </Button>
+        <div class="dialog__actions">
+          <Button
+            :loading="deletingFiles"
+            severity="danger"
+            @click="confirmBulkDelete"
+          >
+            Delete Files
+          </Button>
+          <Button severity="secondary" @click="showDeleteConfirm = false">
+            Cancel
+          </Button>
+        </div>
       </template>
     </Dialog>
 
@@ -380,33 +375,34 @@
       header="Confirm Playlist Processing"
       :style="{ width: '35rem' }"
     >
-      <div v-if="playlistInfo" class="flex-col-gap">
-        <p v-if="playlistInfo.videoCount !== null" class="margin-bottom-4">
+      <div v-if="playlistInfo" class="dialog__info">
+        <p v-if="playlistInfo.videoCount !== null" class="dialog__content">
           This playlist contains
           <strong>{{ playlistInfo.videoCount }}</strong> videos.
         </p>
-        <p v-else class="margin-bottom-4">
+        <p v-else class="dialog__content">
           Unable to determine the exact number of videos in this playlist.
           {{ playlistInfo.warning || playlistInfo.message }}
         </p>
-        <p class="text-sm text-gray-600">
+        <p class="dialog__warning">
           Processing a playlist may take a significant amount of time depending
           on the number of videos. Do you want to proceed?
         </p>
       </div>
 
       <template #footer>
-        <Button
-          :loading="confirmingPlaylist"
-          severity="success"
-          class=""
-          @click="handleConfirmPlaylist(true)"
-        >
-          {{ confirmingPlaylist ? "Processing..." : "Start Processing" }}
-        </Button>
-        <Button severity="secondary" @click="handleConfirmPlaylist(false)">
-          Cancel
-        </Button>
+        <div class="dialog__actions">
+          <Button
+            :loading="confirmingPlaylist"
+            severity="success"
+            @click="handleConfirmPlaylist(true)"
+          >
+            {{ confirmingPlaylist ? "Processing..." : "Start Processing" }}
+          </Button>
+          <Button severity="secondary" @click="handleConfirmPlaylist(false)">
+            Cancel
+          </Button>
+        </div>
       </template>
     </Dialog>
   </div>
@@ -963,347 +959,44 @@ watch(selectedFiles, (newSelection) => {
 });
 </script>
 
-<style scoped>
-.page-container {
-  display: flex;
-  flex-direction: column;
-}
-.header-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-.page-title {
-  font-size: 1.875rem;
-  line-height: 2.25rem;
-  font-weight: 700;
-  color: white;
-}
-.full-width {
-  width: 100%;
-}
-.margin-top-4 {
-  margin-top: 1rem;
-}
-.text-center {
-  text-align: center;
-}
-.padding-y-8 {
-  padding-top: 2rem;
-  padding-bottom: 2rem;
-}
-.text-gray-600 {
-  color: #4b5563;
-}
-.margin-bottom-6 {
-  margin-bottom: 1.5rem;
-}
-.shadow-lg {
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
-    0 4px 6px -2px rgba(0, 0, 0, 0.05);
-}
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(1, minmax(0, 1fr));
-  gap: 1rem;
-}
-@media (min-width: 768px) {
-  .summary-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-.text-3xl {
-  font-size: 1.875rem;
-  line-height: 2.25rem;
-}
-.font-bold {
-  font-weight: 700;
-}
-.text-gray-800 {
-  color: #1f2937;
-}
-.text-sm {
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-}
-.font-medium {
-  font-weight: 500;
-}
-.break-all {
-  word-break: break-all;
-}
-.margin-top-1-5rem {
-  margin-top: 1.5rem;
-}
-.flex-between {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.text-xl {
-  font-size: 1.25rem;
-  line-height: 1.75rem;
-}
-.font-semibold {
-  font-weight: 600;
-}
-.flex-row-center {
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  gap: 0.5rem;
-}
-.text-xs {
-  font-size: 0.75rem;
-  line-height: 1rem;
-}
-.flex-col-md-row {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-@media (min-width: 768px) {
-  .flex-col-md-row {
-    flex-direction: row;
-  }
-}
-.flex-1 {
-  flex: 1 1 0%;
-}
-.margin-bottom-4 {
-  margin-bottom: 1rem;
-}
-.h-full {
-  height: 100%;
-}
-.flex-between-start {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-}
-.flex-1-mb {
-  flex: 1;
-  margin-bottom: 0.25rem;
-}
-.text-lg {
-  font-size: 1.125rem;
-  line-height: 1.75rem;
-}
-.opacity-80 {
-  opacity: 0.8;
-}
-.padding-y-6 {
-  padding-top: 1.5rem;
-  padding-bottom: 1.5rem;
-}
-.margin-top-3 {
-  margin-top: 0.75rem;
-}
-.flex-col-gap {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-.text-blue-link {
-  color: #2563eb;
-}
-.text-blue-link:hover {
-  color: #1d4ed8;
-}
-.underline {
-  text-decoration: underline;
-}
-.max-h-40 {
-  max-height: 10rem;
-}
-.overflow-y-auto {
-  overflow-y: auto;
-}
-.padding-y-1 {
-  padding-top: 0.25rem;
-  padding-bottom: 0.25rem;
-}
-.border-b-gray {
-  border-bottom: 1px solid #e5e7eb;
-}
-.flex-end-gap {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-
-.split-panels {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1.5rem;
-  align-items: flex-start;
-}
-.primary-column {
-  flex: 1;
-  min-width: 0;
-}
-.meta-panel {
-  width: 100%;
-}
-@media (min-width: 768px) {
-  .split-panels {
-    flex-wrap: nowrap;
-  }
-  .meta-panel {
-    width: 20rem;
-    flex-shrink: 0;
-    position: sticky;
-    top: 1rem;
-    align-self: flex-start;
-  }
-}
-@media (min-width: 1024px) {
-  .meta-panel {
-    width: 26rem;
-  }
-}
-@media (min-width: 1280px) {
-  .meta-panel {
-    width: 28rem;
-  }
-}
-.meta-panel .p-card {
-  height: 100%;
-}
-
-.custom-tags-section {
-  margin-bottom: 1rem;
-}
-
-.tag-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-
-.tag-chips .p-button {
-  font-size: 0.75rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: 1rem;
-}
-
-.meta-fields {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-.meta-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-.field-label {
-  font-size: 0.65rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 600;
-}
-.field-input {
-  width: 100%;
-}
-
-.path-cell {
-  cursor: pointer;
-  padding: 0.5rem;
-  border-radius: 0.25rem;
-  transition: background-color 0.2s ease;
-  font-size: 0.9rem;
-  line-height: 1.25rem;
-  word-break: break-all;
-}
-
-.path-cell:hover {
-  background-color: rgba(59, 130, 246, 0.1);
-}
-
-.path-cell.active {
-  background-color: rgba(59, 130, 246, 0.2);
-  border: 1px solid rgba(59, 130, 246, 0.3);
-}
-
-.image-viewer {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.image-container {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1rem;
-  min-height: 200px;
-}
-
-.display-image {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-  border-radius: 0.5rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-}
-
-.image-error {
-  width: 100%;
-  text-align: center;
-}
-
-.scrollable-meta-fields {
-  max-height: 60dvh;
-  overflow-y: auto;
-}
-
-.jobs-button {
-  min-height: 3rem;
-  width: 100%;
-  font-size: 1rem;
-  font-weight: 600;
-}
-
+<style lang="scss" scoped>
 /* Mobile responsive styles */
 @media (max-width: 767px) {
-  .split-panels {
-    flex-direction: column;
+  .metadata {
+    &__panel {
+      flex-direction: column;
+    }
+    
+    &__sidebar {
+      width: 100%;
+      position: static;
+    }
   }
   
-  .meta-panel {
-    width: 100%;
-    position: static;
-  }
-  
-  .files-header-controls {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    align-items: stretch;
-  }
-  
-  .multi-select-toggle {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 0.5rem;
-  }
-  
-  .flex-between {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 1rem;
-  }
-  
-  .flex-between h2 {
-    margin-bottom: 0;
+  .files {
+    &__controls {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      align-items: stretch;
+    }
+    
+    &__multiselect {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    &__header {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 1rem;
+
+      h2 {
+        margin-bottom: 0;
+      }
+    }
   }
   
   .desktop-text {
@@ -1314,9 +1007,15 @@ watch(selectedFiles, (newSelection) => {
     display: inline;
   }
   
-  .summary-grid {
-    grid-template-columns: repeat(1, minmax(0, 1fr));
-    gap: 0.75rem;
+  .mobile-mb-2 {
+    margin-bottom: 0.5rem;
+  }
+  
+  .summary {
+    &__grid {
+      grid-template-columns: repeat(1, minmax(0, 1fr));
+      gap: 0.75rem;
+    }
   }
   
   .p-dialog {
@@ -1326,17 +1025,25 @@ watch(selectedFiles, (newSelection) => {
 }
 
 @media (min-width: 768px) {
-  .files-header-controls {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 0.5rem;
-  }
-  
-  .multi-select-toggle {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
+  .files {
+    &__controls {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    &__multiselect {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    &__header {
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+    }
   }
   
   .desktop-text {
@@ -1345,6 +1052,10 @@ watch(selectedFiles, (newSelection) => {
   
   .mobile-text {
     display: none;
+  }
+  
+  .mobile-mb-2 {
+    margin-bottom: 0;
   }
 }
 </style>

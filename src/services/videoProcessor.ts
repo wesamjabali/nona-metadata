@@ -275,6 +275,8 @@ export async function processVideo(
       }
       if (aiVideoData.discNumber) {
         ffmpegArgs.push("-metadata", `disc=${aiVideoData.discNumber}`);
+      } else {
+        ffmpegArgs.push("-metadata", `disc=1`);
       }
       if (aiVideoData.bpm) {
         ffmpegArgs.push("-metadata", `bpm=${aiVideoData.bpm}`);
@@ -442,6 +444,8 @@ Release Year: ${videoInfo.release_year || "N/A"}
     }
     if (aiVideoData.discNumber) {
       ffmpegArgs.push("-metadata", `disc=${aiVideoData.discNumber}`);
+    } else {
+      ffmpegArgs.push("-metadata", `disc=1`);
     }
     if (aiVideoData.bpm) {
       ffmpegArgs.push("-metadata", `bpm=${aiVideoData.bpm}`);
