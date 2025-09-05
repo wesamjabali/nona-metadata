@@ -11,6 +11,7 @@ import {
   getOrganizedFilePath,
   sanitizeFileName,
 } from "../utils/file.js";
+import { getCaseMatchedOrganizedPath } from "../utils/caseInsensitiveMatching.js";
 import { getExistingAlbumGenre } from "../utils/genreUtils.js";
 import { generateContentWithRetry } from "./ai.js";
 import { fetchAlbumArt, saveAlbumArt } from "./albumArt.js";
@@ -105,7 +106,7 @@ async function handleAlbumArt(
     return null;
   }
 
-  const albumArtPath = getAlbumArtPath(artist, album);
+  const albumArtPath = await getAlbumArtPath(artist, album);
   if (!albumArtPath) {
     console.log(`Album art: Unable to get path for "${album}" by "${artist}"`);
     return null;
@@ -181,11 +182,14 @@ export async function processVideo(
     let initialTempFileName = "";
     let ffmpegTempFileName = "";
 
-    const finalFilePath = getOrganizedFilePath(
+    // Use case-insensitive matching for cached metadata
+    const caseMatchedPath = await getCaseMatchedOrganizedPath(
       cachedMetadata.artist,
       cachedMetadata.album || "Unknown Album",
       cachedMetadata.title
     );
+    
+    const finalFilePath = caseMatchedPath.filePath;
     if (await fs.exists(finalFilePath)) {
       console.log(`Video is already processed (cached): ${finalFilePath}`);
       return cachedMetadata;
@@ -197,9 +201,9 @@ export async function processVideo(
       let aiVideoData = { ...cachedMetadata };
       aiVideoData.duration = videoInfo.duration;
 
-      if (!aiVideoData.album) {
-        aiVideoData.album = "Unknown Album";
-      }
+      // Update metadata to match actual folder structure
+      aiVideoData.artist = caseMatchedPath.actualArtist;
+      aiVideoData.album = caseMatchedPath.actualAlbum;
 
       if (index !== undefined) {
         aiVideoData.trackNumber = index + 1;
@@ -236,11 +240,7 @@ export async function processVideo(
       await ensureDirectory(baseDirectory);
       await downloadVideo(videoUrl, initialTempFileName);
 
-      const organizedFilePath = getOrganizedFilePath(
-        aiVideoData.artist,
-        aiVideoData.album,
-        aiVideoData.title
-      );
+      const organizedFilePath = caseMatchedPath.filePath;
 
       const targetDir = join(organizedFilePath, "..");
       await ensureDirectory(targetDir);
@@ -377,9 +377,16 @@ Release Year: ${videoInfo.release_year || "N/A"}
 
     aiVideoData.duration = videoInfo.duration;
 
-    if (!aiVideoData.album) {
-      aiVideoData.album = "Unknown Album";
-    }
+    // Use case-insensitive matching for AI-generated metadata
+    const caseMatchedPath = await getCaseMatchedOrganizedPath(
+      aiVideoData.artist,
+      aiVideoData.album || "Unknown Album",
+      aiVideoData.title
+    );
+    
+    // Update metadata to match actual folder structure
+    aiVideoData.artist = caseMatchedPath.actualArtist;
+    aiVideoData.album = caseMatchedPath.actualAlbum;
 
     if (index !== undefined) {
       aiVideoData.trackNumber = index + 1;
@@ -408,11 +415,7 @@ Release Year: ${videoInfo.release_year || "N/A"}
     );
     aiVideoData.albumArtPath = albumArtPath;
 
-    const organizedFilePath = getOrganizedFilePath(
-      aiVideoData.artist,
-      aiVideoData.album,
-      aiVideoData.title
-    );
+    const organizedFilePath = caseMatchedPath.filePath;
 
     const targetDir = join(organizedFilePath, "..");
     await ensureDirectory(targetDir);

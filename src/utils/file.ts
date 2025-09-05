@@ -2,6 +2,7 @@ import { promises as fs } from "fs";
 import { mkdir } from "fs/promises";
 import { join } from "path";
 import { baseDirectory, pathNormalization } from "../config/constants.js";
+import { findExistingArtistFolder, findExistingAlbumFolder } from "./caseInsensitiveMatching.js";
 
 /**
  * Clean up orphaned temporary files on startup
@@ -121,26 +122,26 @@ export function getOrganizedFilePath(
 }
 
 /**
- * Generates the album art file path for an artist/album combination.
+ * Generates the album art file path for an artist/album combination using case-insensitive matching.
  * @param artist The artist name.
  * @param album The album name (or null).
  * @returns The base file path where the album art should be stored (without extension), or null if no album.
  */
-export function getAlbumArtPath(
+export async function getAlbumArtPath(
   artist: string,
   album: string | null
-): string | null {
+): Promise<string | null> {
   if (album === null || album === "" || album === "Unknown Album") {
     return null;
   }
 
-  const sanitizedArtist = sanitizeFileName(artist) || "Unknown Artist";
-  const sanitizedAlbum = sanitizeFileName(album);
+  const actualArtist = await findExistingArtistFolder(artist);
+  const actualAlbum = await findExistingAlbumFolder(actualArtist, album);
 
   const basePath = join(
     baseDirectory,
-    sanitizedArtist,
-    sanitizedAlbum,
+    actualArtist,
+    actualAlbum,
     "cover"
   );
 
@@ -182,20 +183,20 @@ export function isPlaylistUrl(url: string): boolean {
 }
 
 /**
- * Gets the album directory path for an artist and album combination.
+ * Gets the album directory path for an artist and album combination using case-insensitive matching.
  * @param artist The artist name.
  * @param album The album name.
  * @returns The directory path where the album's files should be stored.
  */
-export function getAlbumDirectoryPath(artist: string, album: string): string {
-  const sanitizedArtist = sanitizeFileName(artist) || "Unknown Artist";
-  const sanitizedAlbum = sanitizeFileName(album);
+export async function getAlbumDirectoryPath(artist: string, album: string): Promise<string> {
+  const actualArtist = await findExistingArtistFolder(artist);
+  const actualAlbum = await findExistingAlbumFolder(actualArtist, album);
 
-  return join(baseDirectory, sanitizedArtist, sanitizedAlbum);
+  return join(baseDirectory, actualArtist, actualAlbum);
 }
 
 /**
- * Finds existing music files in the same album directory.
+ * Finds existing music files in the same album directory using case-insensitive matching.
  * @param artist The artist name.
  * @param album The album name.
  * @returns A Promise that resolves with an array of existing music file paths in the album directory.
@@ -208,7 +209,7 @@ export async function findExistingAlbumFiles(
     return [];
   }
 
-  const albumDir = getAlbumDirectoryPath(artist, album);
+  const albumDir = await getAlbumDirectoryPath(artist, album);
 
   try {
     const entries = await fs.readdir(albumDir);

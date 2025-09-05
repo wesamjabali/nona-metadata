@@ -81,7 +81,7 @@ async function fetchAlbumArtForExistingFiles(
         console.log(`🎤 Artist: ${artist}`);
         console.log(`💿 Album: ${album}`);
 
-        const albumArtPath = getAlbumArtPath(artist, album);
+        const albumArtPath = await getAlbumArtPath(artist, album);
         if (!albumArtPath) {
           console.log(`⚠️  Could not determine album art path, skipping...`);
           processed++;
