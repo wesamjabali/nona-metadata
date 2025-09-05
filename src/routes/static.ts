@@ -40,11 +40,14 @@ const isProduction = async (): Promise<boolean> => {
 };
 
 /**
- * Get the main HTML file path based on environment
+ * Get the HTML file path based on environment
  */
-const getMainHtmlPath = async (): Promise<string> => {
+const getHtmlPath = async (path: string): Promise<string> => {
   const production = await isProduction();
-  return production ? "index.html" : "frontend/.output/public/index.html";
+  const basePath = production ? "." : "frontend/.output/public";
+  const fileName = "index.html";
+
+  return `${basePath}${path}/${fileName}`;
 };
 
 /**
@@ -77,43 +80,30 @@ const getFilePath = async (pathname: string): Promise<string> => {
 };
 
 /**
- * Handle the root route - serve the HTML frontend
- */
-export async function handleRoot(request: Request): Promise<Response> {
-  const htmlPath = await getMainHtmlPath();
-  const htmlContent = await Bun.file(htmlPath).text();
-  const injectedHtml = injectValues(htmlContent);
-
-  return new Response(injectedHtml, {
-    headers: { "Content-Type": "text/html" },
-  });
-}
-
-/**
  * Handle any Vue route - serve the same HTML and let Vue Router handle client-side routing
  */
 export async function handleVueRoute(request: Request): Promise<Response> {
-  const htmlPath = await getMainHtmlPath();
-  const htmlContent = await Bun.file(htmlPath).text();
-  const injectedHtml = injectValues(htmlContent);
+  const url = new URL(request.url);
+  const pathname = url.pathname;
 
-  if (!injectedHtml) {
-    return createErrorResponse("Not Found", undefined, 404);
+  const htmlPath = await getHtmlPath(pathname);
+  let htmlContent = "";
+  try {
+    htmlContent = await Bun.file(htmlPath).text();
+  } catch {
+    const notFoundPage = await Bun.file(
+      "frontend/.output/public/404.html"
+    ).text();
+    return new Response(notFoundPage, {
+      headers: { "Content-Type": "text/html" },
+      status: 404,
+    });
   }
+  const injectedHtml = injectValues(htmlContent);
 
   return new Response(injectedHtml, {
     headers: { "Content-Type": "text/html" },
   });
-}
-
-/**
- * Handle the processing jobs route - serve the processing jobs HTML page
- * @deprecated Use handleVueRoute instead for SPA routing
- */
-export async function handleProcessingJobs(
-  request: Request
-): Promise<Response> {
-  return handleVueRoute(request);
 }
 
 /**

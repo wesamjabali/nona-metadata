@@ -7,11 +7,7 @@ import { handleFilesList } from "./routes/files.js";
 import { handleGetAllJobs, handleGetJobStatus } from "./routes/jobs.js";
 import { handleGetMetadata, handleUpdateMetadata } from "./routes/metadata.js";
 import { handlePlaylistInfo, handleProcessVideo } from "./routes/process.js";
-import {
-  handleRoot,
-  handleStaticFile,
-  handleVueRoute,
-} from "./routes/static.js";
+import { handleStaticFile, handleVueRoute } from "./routes/static.js";
 import { CacheManager } from "./services/cache.js";
 import { JobTracker } from "./services/jobTracker.js";
 
@@ -29,7 +25,7 @@ export class Router {
 
     try {
       if (method === "GET" && pathname === "/") {
-        return handleRoot(request);
+        return handleVueRoute(request);
       }
 
       if (
