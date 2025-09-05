@@ -24,9 +24,28 @@ export default defineNuxtConfig({
   },
   app: {
     head: {
+      title: "Nona Metadata",
       htmlAttrs: {
         class: "dark",
       },
+      meta: [
+        {
+          name: "description",
+          content: "A tool for managing and processing your library's metadata",
+        },
+        { property: "og:title", content: "Nona Metadata" },
+        {
+          property: "og:description",
+          content: "A tool for managing and processing your library's metadata",
+        },
+        { property: "og:type", content: "website" },
+        { name: "twitter:card", content: "summary" },
+        { name: "twitter:title", content: "Nona Metadata" },
+        {
+          name: "twitter:description",
+          content: "A tool for managing and processing your library's metadata",
+        },
+      ],
     },
   },
   primevue: {

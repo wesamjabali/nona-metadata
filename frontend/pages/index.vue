@@ -106,26 +106,31 @@
             <template #title>
               <div class="flex-between">
                 <h2 class="text-xl font-semibold">Files</h2>
-                <div class="flex-row-center">
+                <div class="files-header-controls">
                   <Button
                     v-if="selectedFiles.length > 1"
                     severity="danger"
                     size="small"
+                    class="mobile-mb-2"
                     @click="showDeleteConfirm = true"
                   >
-                    Bulk Delete ({{ selectedFiles.length }})
+                    <span class="desktop-text">Bulk Delete ({{ selectedFiles.length }})</span>
+                    <span class="mobile-text">Delete ({{ selectedFiles.length }})</span>
                   </Button>
                   <Button
                     severity="secondary"
                     size="small"
+                    class="mobile-mb-2"
                     @click="refreshFiles"
                     >Refresh</Button
                   >
-                  <span class="text-xs">Multi-Select</span>
-                  <InputSwitch
-                    v-model="multiSelectEnabled"
-                    @change="onToggleMultiSelect"
-                  />
+                  <div class="multi-select-toggle">
+                    <span class="text-xs">Multi-Select</span>
+                    <InputSwitch
+                      v-model="multiSelectEnabled"
+                      @change="onToggleMultiSelect"
+                    />
+                  </div>
                 </div>
               </div>
             </template>
@@ -1264,5 +1269,82 @@ watch(selectedFiles, (newSelection) => {
   width: 100%;
   font-size: 1rem;
   font-weight: 600;
+}
+
+/* Mobile responsive styles */
+@media (max-width: 767px) {
+  .split-panels {
+    flex-direction: column;
+  }
+  
+  .meta-panel {
+    width: 100%;
+    position: static;
+  }
+  
+  .files-header-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: stretch;
+  }
+  
+  .multi-select-toggle {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .flex-between {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+  
+  .flex-between h2 {
+    margin-bottom: 0;
+  }
+  
+  .desktop-text {
+    display: none;
+  }
+  
+  .mobile-text {
+    display: inline;
+  }
+  
+  .summary-grid {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  
+  .p-dialog {
+    width: 95vw !important;
+    max-width: 95vw !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .files-header-controls {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .multi-select-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .desktop-text {
+    display: inline;
+  }
+  
+  .mobile-text {
+    display: none;
+  }
 }
 </style>

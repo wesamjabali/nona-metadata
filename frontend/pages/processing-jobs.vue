@@ -1,7 +1,7 @@
 <template>
   <div class="page-container">
-    <div class="header-row">
-      <h1 class="page-title">Processing Jobs</h1>
+    <div class="jobs-header">
+      <h1 class="jobs-title">Processing Jobs</h1>
       <Button severity="secondary" @click="refreshJobs">Refresh</Button>
     </div>
 
@@ -423,18 +423,21 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
 }
-.header-row {
+
+.jobs-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1.5rem;
 }
-.page-title {
+
+.jobs-title {
   font-size: 1.875rem;
   line-height: 2.25rem;
   font-weight: 700;
   color: white;
 }
+
 .text-center {
   text-align: center;
 }
@@ -574,5 +577,57 @@ onMounted(() => {
 }
 .text-red-400 {
   color: #f87171;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 767px) {
+  .jobs-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+  
+  .jobs-title {
+    font-size: 1.5rem;
+    margin-bottom: 0;
+  }
+  
+  /* Make DataTable more mobile-friendly */
+  .p-datatable .p-datatable-wrapper {
+    overflow-x: auto;
+  }
+  
+  .p-datatable .p-datatable-thead > tr > th,
+  .p-datatable .p-datatable-tbody > tr > td {
+    padding: 0.5rem 0.25rem;
+    font-size: 0.875rem;
+    min-width: 120px;
+  }
+  
+  /* Adjust grid layouts for mobile */
+  .grid-cols-2 {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+  
+  .grid-cols-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  
+  /* Progress bar adjustments */
+  .w-20 {
+    width: 100%;
+    min-width: 80px;
+  }
+  
+  /* Text truncation for mobile */
+  .text-sm {
+    font-size: 0.75rem;
+  }
+  
+  /* Compact nested tables */
+  .p-datatable-sm .p-datatable-tbody > tr > td {
+    padding: 0.25rem;
+    font-size: 0.75rem;
+  }
 }
 </style>

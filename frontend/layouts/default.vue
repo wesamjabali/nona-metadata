@@ -31,7 +31,13 @@
 .header-content {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 1rem 1.5rem;
+  padding: 0.75rem 1rem;
+}
+
+@media (min-width: 768px) {
+  .header-content {
+    padding: 1rem 1.5rem;
+  }
 }
 
 .app-title-link {
@@ -40,12 +46,18 @@
 }
 
 .app-title {
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: white;
   margin: 0;
   cursor: pointer;
   transition: opacity 0.2s ease;
+}
+
+@media (min-width: 768px) {
+  .app-title {
+    font-size: 1.5rem;
+  }
 }
 
 .app-title:hover {
@@ -54,13 +66,19 @@
 
 .page-content {
   flex: 1;
-  padding: 2rem 1.5rem;
+  padding: 1rem;
   max-width: 1200px;
   margin: 0 auto;
   width: 100%;
 }
 
 @media (min-width: 768px) {
+  .page-content {
+    padding: 2rem 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
   .page-content {
     padding: 2rem;
   }

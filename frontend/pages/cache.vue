@@ -1,13 +1,13 @@
 <template>
   <div class="page-container stack">
-    <div class="flex justify-between items-center mb-6">
-      <h1 class="text-3xl font-bold text-gray-800">Cache Management</h1>
-      <Button @click="refreshStats" severity="secondary">
+    <div class="cache-header">
+      <h1 class="cache-title">Cache Management</h1>
+      <Button severity="secondary" @click="refreshStats">
         Refresh Stats
       </Button>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+    <div class="cache-grid">
       <!-- Cache Statistics -->
       <Card class="shadow-lg">
         <template #title>
@@ -27,17 +27,17 @@
 
           <div
             v-else-if="cacheStats"
-            class="grid grid-cols-1 sm:grid-cols-2 gap-4"
+            class="stats-grid"
           >
             <div
               v-for="(value, key) in cacheStats"
               :key="key"
-              class="text-center p-4 border border-gray-200 rounded-lg"
+              class="stat-item"
             >
-              <div class="text-sm text-gray-600 mb-1">
+              <div class="stat-label">
                 {{ formatStatLabel(key) }}
               </div>
-              <div class="text-xl font-bold text-blue-600">
+              <div class="stat-value">
                 {{ formatStatValue(key, value) }}
               </div>
             </div>
@@ -51,11 +51,11 @@
           <h2 class="text-xl font-semibold">Cache Cleanup</h2>
         </template>
         <template #content>
-          <form @submit.prevent="performCleanup" class="space-y-4">
+          <form class="cleanup-form" @submit.prevent="performCleanup">
             <div>
               <label
                 for="days-old"
-                class="block text-sm font-medium text-gray-700 mb-2"
+                class="cleanup-label"
               >
                 Delete entries older than (days)
               </label>
@@ -68,7 +68,7 @@
                 class="w-full"
                 suffix=" days"
               />
-              <small class="text-gray-500 text-xs mt-1 block"
+              <small class="cleanup-help"
                 >Set to 0 to delete all entries</small
               >
             </div>
@@ -89,7 +89,7 @@
             :closable="false"
             class="mt-4"
           >
-            <i :class="cleanupResult.icon" class=""></i>
+            <i :class="cleanupResult.icon" />
             {{ cleanupResult.message }}
           </Message>
         </template>
@@ -231,4 +231,114 @@ onMounted(() => {
 });
 </script>
 
-<style scoped></style>
+<style scoped>
+.cache-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.cache-title {
+  font-size: 1.875rem;
+  line-height: 2.25rem;
+  font-weight: 700;
+  color: white;
+}
+
+.cache-grid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .cache-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+@media (min-width: 640px) {
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.stat-item {
+  text-align: center;
+  padding: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-bottom: 0.25rem;
+}
+
+.stat-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #2563eb;
+}
+
+.cleanup-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.cleanup-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 0.5rem;
+}
+
+.cleanup-help {
+  color: #6b7280;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+  display: block;
+}
+
+/* Mobile-specific adjustments */
+@media (max-width: 767px) {
+  .cache-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+  
+  .cache-title {
+    font-size: 1.5rem;
+    margin-bottom: 0;
+  }
+  
+  .stats-grid {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  
+  .stat-item {
+    padding: 0.75rem;
+  }
+  
+  .stat-label {
+    font-size: 0.75rem;
+  }
+  
+  .stat-value {
+    font-size: 1.125rem;
+  }
+}
+</style>
