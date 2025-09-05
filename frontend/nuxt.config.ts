@@ -22,13 +22,20 @@ export default defineNuxtConfig({
         process.env.NODE_ENV === "production" ? "" : "http://localhost:80",
     },
   },
+  app: {
+    head: {
+      htmlAttrs: {
+        class: "dark",
+      },
+    },
+  },
   primevue: {
     autoImport: true,
     options: {
       theme: {
         preset: Aura,
         options: {
-          darkModeSelector: true,
+          darkModeSelector: ".dark",
         },
       },
     },
