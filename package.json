@@ -1,0 +1,17 @@
+{
+  "name": "yt-metadata",
+  "private": true,
+  "scripts": {
+    "start": "bun run server.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "ytdl-core": "^4.11.5"
+  }
+}

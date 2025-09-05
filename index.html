@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YT-Metadata Frontend</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
+</head>
+
+<body class="bg-slate-900 text-slate-200 min-h-screen p-4 sm:p-8 flex items-center justify-center">
+
+    <div class="container max-w-4xl mx-auto space-y-8 bg-slate-800 rounded-2xl shadow-xl p-6 sm:p-10">
+        <header class="text-center">
+            <h1 class="text-3xl sm:text-4xl font-extrabold text-blue-400 mb-2">YT-Metadata Frontend</h1>
+            <p class="text-slate-400">Interact with your local YouTube metadata server.</p>
+        </header>
+
+        <!-- Status & Messages -->
+        <div id="status-message"
+            class="bg-slate-700 text-slate-300 p-4 rounded-xl text-sm transition-all duration-300 ease-in-out hidden">
+        </div>
+        <div id="loading-indicator" class="flex items-center justify-center text-blue-400 hidden">
+            <svg class="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none"
+                viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                </path>
+            </svg>
+            Processing...
+        </div>
+
+        <!-- Download Section -->
+        <section class="space-y-4">
+            <h2 class="text-xl sm:text-2xl font-bold text-blue-300">Download & Extract Metadata</h2>
+            <!-- Main container for download controls, now always a column -->
+            <div class="flex flex-col gap-4">
+                <div class="flex flex-col sm:flex-row gap-4">
+                    <input type="text" id="youtube-url" placeholder="Enter YouTube URL (video or playlist)"
+                        class="flex-1 bg-slate-700 border border-slate-600 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors placeholder-slate-400">
+                    <button id="download-btn"
+                        class="bg-blue-600 hover:bg-blue-700 transition-colors text-white font-semibold py-3 px-6 rounded-xl shadow-lg">Download
+                        & Process</button>
+                </div>
+                <!-- Checkbox is now on its own line, styled with a background and border -->
+                <div
+                    class="flex items-center gap-2 bg-slate-700 p-3 rounded-xl border border-slate-600 cursor-pointer hover:bg-slate-600 transition-colors cursor-pointer">
+                    <input type="checkbox" id="playlist-checkbox"
+                        class="h-4 w-4 text-blue-600 bg-slate-700 border-slate-600 rounded focus:ring-blue-500 cursor-pointer">
+                    <label for="playlist-checkbox" class="text-sm font-medium select-none flex-1 cursor-pointer">Process
+                        as
+                        playlist</label>
+                </div>
+            </div>
+            <div id="download-results"
+                class="bg-slate-700 p-4 rounded-xl text-sm overflow-auto max-h-96 whitespace-pre-wrap hidden"></div>
+        </section>
+
+        <hr class="border-slate-700">
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- Files Section -->
+            <section class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-xl sm:text-2xl font-bold text-blue-300">My Music Files</h2>
+                    <button id="refresh-btn"
+                        class="bg-slate-600 hover:bg-slate-500 transition-colors text-slate-200 py-2 px-4 rounded-xl text-sm shadow-md">Refresh
+                        List</button>
+                </div>
+                <div id="files-list" class="bg-slate-700 p-4 rounded-xl text-sm overflow-auto max-h-96 space-y-2">
+                    <p class="text-slate-400 text-center">Click 'Refresh List' to see your files.</p>
+                </div>
+            </section>
+
+            <!-- Metadata Section -->
+            <section class="space-y-4">
+                <h2 class="text-xl sm:text-2xl font-bold text-blue-300">File Metadata</h2>
+                <div id="metadata-display" class="bg-slate-700 p-4 rounded-xl space-y-4 hidden">
+                    <p class="text-sm text-slate-400">Editing: <span id="current-file-path"
+                            class="text-white font-mono"></span></p>
+                    <form id="metadata-form" class="space-y-2">
+                        <!-- Fields will be dynamically added here -->
+                    </form>
+
+                    <!-- New section for adding custom tags -->
+                    <div class="mt-4 pt-4 border-t border-slate-600">
+                        <h3 class="text-lg font-bold text-blue-300 mb-2">Add Custom Tag</h3>
+                        <div class="flex gap-2">
+                            <input type="text" id="new-tag-key" placeholder="New tag name (e.g., producer)"
+                                class="flex-1 bg-slate-600 border border-slate-500 rounded-lg p-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            <button type="button" id="add-tag-btn"
+                                class="bg-slate-600 hover:bg-slate-500 transition-colors text-slate-200 py-2 px-4 rounded-xl text-sm shadow-md">Add</button>
+                        </div>
+                    </div>
+
+                    <button id="update-btn"
+                        class="w-full bg-blue-600 hover:bg-blue-700 transition-colors text-white font-semibold py-3 rounded-xl shadow-lg mt-4">Update
+                        Metadata</button>
+                </div>
+                <div id="metadata-placeholder" class="bg-slate-700 p-4 rounded-xl text-sm text-center text-slate-400">
+                    Select a file from the list to view and edit its metadata.
+                </div>
+            </section>
+
+        </div>
+        <hr class="border-slate-700">
+        <!-- Cache Section -->
+        <section class="space-y-4">
+            <h2 class="text-xl sm:text-2xl font-bold text-blue-300">Cache Management</h2>
+            <div class="flex flex-col sm:flex-row gap-4">
+                <div class="flex flex-1 gap-2 items-center">
+                    <button id="cleanup-cache-btn"
+                        class="flex-1 bg-slate-600 hover:bg-slate-500 transition-colors text-slate-200 font-semibold py-3 px-6 rounded-xl shadow-md">Clean
+                        Cache</button>
+                    <span class="text-sm font-medium text-slate-400">Older than</span>
+                    <input type="number" id="cleanup-days-input" value="0"
+                        class="w-20 bg-slate-700 border border-slate-600 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors">
+                    <span class="text-sm font-medium text-slate-400">days</span>
+                </div>
+            </div>
+            <div id="cache-stats-display" class="bg-slate-700 p-4 rounded-xl text-sm hidden"></div>
+        </section>
+    </div>
+
+    <script>
+        const BASE_URL = 'http://localhost:3000';
+        const statusMessage = document.getElementById('status-message');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const downloadUrlInput = document.getElementById('youtube-url');
+        const downloadBtn = document.getElementById('download-btn');
+        const downloadResults = document.getElementById('download-results');
+        const refreshBtn = document.getElementById('refresh-btn');
+        const filesList = document.getElementById('files-list');
+        const metadataDisplay = document.getElementById('metadata-display');
+        const metadataPlaceholder = document.getElementById('metadata-placeholder');
+        const currentFilePathSpan = document.getElementById('current-file-path');
+        const metadataForm = document.getElementById('metadata-form');
+        const updateBtn = document.getElementById('update-btn');
+        const playlistCheckbox = document.getElementById('playlist-checkbox');
+
+        // New elements for custom tags
+        const newTagKeyInput = document.getElementById('new-tag-key');
+        const addTagBtn = document.getElementById('add-tag-btn');
+
+        // New elements for cache management
+        const cleanupCacheBtn = document.getElementById('cleanup-cache-btn');
+        const cleanupDaysInput = document.getElementById('cleanup-days-input');
+        const cacheStatsDisplay = document.getElementById('cache-stats-display');
+
+        let selectedFile = null;
+
+        const showMessage = (message, isError = false) => {
+            statusMessage.textContent = message;
+            statusMessage.className = `fixed bottom-4 right-4 p-4 rounded-xl text-sm transition-all duration-300 ease-in-out shadow-lg z-50 max-w-sm ${isError ? 'bg-red-900 text-red-300 border border-red-800' : 'bg-green-900 text-green-300 border border-green-800'}`;
+            statusMessage.style.display = 'block';
+            statusMessage.style.transform = 'translateX(0)';
+            statusMessage.style.opacity = '1';
+            setTimeout(() => {
+                statusMessage.style.transform = 'translateX(100%)';
+                statusMessage.style.opacity = '0';
+                setTimeout(() => {
+                    statusMessage.style.display = 'none';
+                }, 300);
+            }, 5000);
+        };
+
+        const setLoading = (isLoading) => {
+            loadingIndicator.style.display = isLoading ? 'flex' : 'none';
+            downloadBtn.disabled = isLoading;
+            refreshBtn.disabled = isLoading;
+            updateBtn.disabled = isLoading;
+            addTagBtn.disabled = isLoading;
+            cleanupCacheBtn.disabled = isLoading;
+            downloadBtn.textContent = isLoading ? 'Processing...' : 'Download & Process';
+            updateBtn.textContent = isLoading ? 'Updating...' : 'Update Metadata';
+            cleanupCacheBtn.textContent = isLoading ? 'Clearing...' : 'Clear AI request cache';
+        };
+
+        const handleErrors = async (response) => {
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || response.statusText);
+            }
+            return response.json();
+        };
+
+        // POST /
+        const handleDownload = async () => {
+            let url = downloadUrlInput.value.trim();
+            if (!url) {
+                showMessage("Please enter a YouTube URL.", true);
+                return;
+            }
+
+            // If checkbox is unchecked, remove the playlist parameter
+            if (!playlistCheckbox.checked) {
+                try {
+                    const urlObj = new URL(url);
+                    urlObj.searchParams.delete('list');
+                    url = urlObj.toString();
+                } catch (e) {
+                    // Ignore if URL is invalid, just use the original string
+                }
+            }
+
+            setLoading(true);
+            downloadResults.textContent = '';
+            downloadResults.style.display = 'block';
+
+            try {
+                const response = await fetch(`${BASE_URL}/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: url })
+                });
+                const result = await handleErrors(response);
+                downloadResults.textContent = JSON.stringify(result, null, 2);
+                fetchCacheStats();
+                showMessage("Download and processing complete!");
+            } catch (error) {
+                showMessage(`Download failed: ${error.message}`, true);
+                downloadResults.textContent = `Error: ${error.message}`;
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        // GET /files
+        const fetchFiles = async () => {
+            setLoading(true);
+            filesList.innerHTML = '<p class="text-slate-400 text-center">Loading files...</p>';
+            metadataDisplay.style.display = 'none';
+            metadataPlaceholder.style.display = 'block';
+
+            try {
+                const response = await fetch(`${BASE_URL}/files`);
+                const result = await handleErrors(response);
+                if (result.files && result.files.length > 0) {
+                    filesList.innerHTML = '';
+                    result.files.forEach(file => {
+                        const fileEl = document.createElement('div');
+                        fileEl.className = 'bg-slate-800 hover:bg-slate-700 transition-colors p-3 rounded-lg cursor-pointer truncate';
+                        fileEl.textContent = file;
+                        fileEl.dataset.path = file;
+                        fileEl.addEventListener('click', () => handleFileClick(file));
+                        filesList.appendChild(fileEl);
+                    });
+                } else {
+                    filesList.innerHTML = '<p class="text-slate-400 text-center">No files found.</p>';
+                }
+            } catch (error) {
+                filesList.innerHTML = `<p class="text-red-300 text-center">Failed to load files: ${error.message}</p>`;
+                showMessage(`Failed to load files: ${error.message}`, true);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        // GET /metadata
+        const handleFileClick = async (filePath) => {
+            selectedFile = filePath;
+            currentFilePathSpan.textContent = filePath;
+            metadataForm.innerHTML = '';
+            metadataDisplay.style.display = 'none';
+            metadataPlaceholder.style.display = 'block';
+            setLoading(true);
+
+            try {
+                const response = await fetch(`${BASE_URL}/metadata?file=${encodeURIComponent(filePath)}`);
+                const result = await handleErrors(response);
+
+                for (const key in result.tags) {
+                    const value = result.tags[key];
+                    const inputGroup = document.createElement('div');
+                    inputGroup.className = 'flex flex-col space-y-1';
+
+                    const label = document.createElement('label');
+                    label.textContent = key.charAt(0).toUpperCase() + key.slice(1);
+                    label.htmlFor = `tag-${key}`;
+                    label.className = 'text-slate-400 text-xs font-semibold uppercase tracking-wider';
+
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.id = `tag-${key}`;
+                    input.name = key;
+                    input.value = value;
+                    input.className = 'bg-slate-600 border border-slate-500 rounded-lg p-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500';
+
+                    inputGroup.appendChild(label);
+                    inputGroup.appendChild(input);
+                    metadataForm.appendChild(inputGroup);
+                }
+
+                metadataPlaceholder.style.display = 'none';
+                metadataDisplay.style.display = 'block';
+                showMessage(`Metadata for ${filePath} loaded.`);
+            } catch (error) {
+                showMessage(`Failed to get metadata: ${error.message}`, true);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        // PATCH /metadata
+        const handleUpdate = async (event) => {
+            event.preventDefault();
+            if (!selectedFile) {
+                showMessage("No file selected to update.", true);
+                return;
+            }
+            setLoading(true);
+
+            const formData = new FormData(metadataForm);
+            const tags = {};
+            for (let [key, value] of formData.entries()) {
+                tags[key] = value;
+            }
+
+            try {
+                const response = await fetch(`${BASE_URL}/metadata`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ file: selectedFile, tags: tags })
+                });
+                const result = await handleErrors(response);
+                showMessage(`Successfully updated metadata for ${result.filePath}`);
+            } catch (error) {
+                showMessage(`Update failed: ${error.message}`, true);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        // New function to add a custom tag to the form
+        const addCustomTag = () => {
+            const key = newTagKeyInput.value.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+            if (!key) {
+                showMessage('Please enter a valid tag name.', true);
+                return;
+            }
+
+            // Check if tag already exists in the form
+            const existingInput = document.getElementById(`tag-${key}`);
+            if (existingInput) {
+                showMessage(`Tag "${key}" already exists.`, true);
+                newTagKeyInput.value = '';
+                existingInput.focus();
+                return;
+            }
+
+            const inputGroup = document.createElement('div');
+            inputGroup.className = 'flex flex-col space-y-1';
+
+            const label = document.createElement('label');
+            label.textContent = key.charAt(0).toUpperCase() + key.slice(1);
+            label.htmlFor = `tag-${key}`;
+            label.className = 'text-slate-400 text-xs font-semibold uppercase tracking-wider';
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.id = `tag-${key}`;
+            input.name = key;
+            input.value = '';
+            input.className = 'bg-slate-600 border border-slate-500 rounded-lg p-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500';
+
+            inputGroup.appendChild(label);
+            inputGroup.appendChild(input);
+            metadataForm.appendChild(inputGroup);
+
+            newTagKeyInput.value = '';
+            input.focus();
+        };
+
+        // New function to handle GET /cache/stats
+        const fetchCacheStats = async () => {
+            setLoading(true);
+            cacheStatsDisplay.style.display = 'block';
+            cacheStatsDisplay.innerHTML = '<p class="text-center text-slate-400">Loading cache stats...</p>';
+            try {
+                const response = await fetch(`${BASE_URL}/cache/stats`);
+                const result = await handleErrors(response);
+                const stats = result.stats;
+                cacheStatsDisplay.innerHTML = `
+                    <p><strong>Total Entries:</strong> ${stats.totalEntries}</p>
+                    <p><strong>Oldest Entry:</strong> ${stats.oldestEntry}</p>
+                    <p><strong>Newest Entry:</strong> ${stats.newestEntry}</p>
+                `;
+                showMessage("Cache statistics loaded successfully.");
+            } catch (error) {
+                cacheStatsDisplay.innerHTML = `<p class="text-red-300 text-center">Failed to load cache stats: ${error.message}</p>`;
+                showMessage(`Failed to load cache stats: ${error.message}`, true);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        // New function to handle POST /cache/cleanup
+        const cleanupCache = async () => {
+            setLoading(true);
+            const daysOld = cleanupDaysInput.value ? parseInt(cleanupDaysInput.value, 10) : 30;
+            try {
+                const response = await fetch(`${BASE_URL}/cache/cleanup`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ daysOld })
+                });
+                const result = await handleErrors(response);
+                showMessage(`Cache cleaned. ${result.message}`);
+                // Optional: Refresh stats after cleanup
+                fetchCacheStats();
+            } catch (error) {
+                showMessage(`Cache cleanup failed: ${error.message}`, true);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+
+        // Event Listeners
+        downloadBtn.addEventListener('click', handleDownload);
+        refreshBtn.addEventListener('click', fetchFiles);
+        metadataForm.addEventListener('submit', handleUpdate);
+        updateBtn.addEventListener('click', handleUpdate);
+        addTagBtn.addEventListener('click', addCustomTag);
+        cleanupCacheBtn.addEventListener('click', cleanupCache);
+
+        // Initializers
+        fetchCacheStats();
+
+        // Function to check for download query parameter
+        const checkDownloadQueryParam = () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const downloadUrl = urlParams.get('download');
+            const playlistParam = urlParams.get('playlist');
+
+            if (downloadUrl) {
+                // Pre-fill the YouTube URL input
+                downloadUrlInput.value = decodeURIComponent(downloadUrl);
+
+                // Set playlist checkbox based on playlist parameter (1 or 0)
+                if (playlistParam !== null) {
+                    playlistCheckbox.checked = playlistParam === '1';
+                }
+
+                // Show a message that auto-download is starting
+                showMessage('Auto-downloading from URL parameter...');
+
+                // Start the download process
+                setTimeout(() => {
+                    handleDownload();
+                }, 500); // Small delay to ensure UI is ready
+            }
+        };        // Initial setup on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchFiles();
+            checkDownloadQueryParam();
+        });
+    </script>
+
+</body>
+
+</html>
