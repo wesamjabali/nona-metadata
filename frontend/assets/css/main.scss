@@ -84,7 +84,7 @@ body,
 
         &-text {
             margin-top: 0.75rem;
-            color: #6b7280;
+            color: #d1d5db;
         }
     }
 
@@ -363,7 +363,7 @@ body,
     &__mode-indicator {
         font-size: 0.75rem;
         line-height: 1rem;
-        color: #6b7280;
+        color: #d1d5db;
     }
 
     &__actions {
@@ -516,7 +516,7 @@ body,
     &__warning {
         font-size: 0.875rem;
         line-height: 1.25rem;
-        color: #6b7280;
+        color: #d1d5db;
     }
 }
 
@@ -540,7 +540,7 @@ body,
     &__empty {
         text-align: center;
         padding: 2rem 0;
-        color: #6b7280;
+        color: #d1d5db;
     }
 }
 
@@ -588,7 +588,7 @@ body,
     &__missing {
         display: flex;
         align-items: center;
-        color: #9ca3af;
+        color: #d1d5db;
     }
 
     &__error {
@@ -625,7 +625,7 @@ body,
     &__empty-state {
         text-align: center;
         padding: 2rem 0;
-        color: #6b7280;
+        color: #d1d5db;
     }
 }
 
@@ -653,20 +653,19 @@ body,
     &__item {
         text-align: center;
         padding: 1rem;
-        border: 1px solid #e5e7eb;
         border-radius: 0.5rem;
     }
 
     &__label {
         font-size: 0.875rem;
-        color: #6b7280;
+        color: #d1d5db;
         margin-bottom: 0.25rem;
     }
 
     &__value {
         font-size: 1.25rem;
         font-weight: 700;
-        color: #2563eb;
+        color: #60a5fa;
     }
 }
 
@@ -682,7 +681,7 @@ body,
 
         &-text {
             margin-top: 1rem;
-            color: #6b7280;
+            color: #d1d5db;
         }
     }
 
@@ -702,7 +701,7 @@ body,
             display: block;
             font-size: 0.875rem;
             font-weight: 500;
-            color: #374151;
+            color: #e5e7eb;
             margin-bottom: 0.5rem;
         }
 
@@ -711,7 +710,7 @@ body,
         }
 
         &-help {
-            color: #6b7280;
+            color: #d1d5db;
             font-size: 0.75rem;
             margin-top: 0.25rem;
             display: block;
@@ -741,16 +740,16 @@ body,
             font-size: 1.125rem;
             line-height: 1.75rem;
             font-weight: 500;
-            color: #1f2937;
+            color: #f9fafb;
             margin-bottom: 0.5rem;
         }
 
         &-content {
-            color: #6b7280;
+            color: #d1d5db;
         }
 
         &-list {
-            color: #6b7280;
+            color: #d1d5db;
             display: flex;
             flex-direction: column;
             gap: 0.25rem;
@@ -795,7 +794,7 @@ body,
             &-label {
                 font-size: 0.875rem;
                 line-height: 1.25rem;
-                color: #9ca3af;
+                color: #d1d5db;
             }
         }
     }
@@ -810,7 +809,7 @@ body,
     &__missing {
         display: flex;
         align-items: center;
-        color: #9ca3af;
+        color: #d1d5db;
     }
 }
 
@@ -981,20 +980,19 @@ body,
     &__item {
         text-align: center;
         padding: 1rem;
-        border: 1px solid #e5e7eb;
         border-radius: 0.5rem;
     }
 
     &__label {
         font-size: 0.875rem;
-        color: #6b7280;
+        color: #d1d5db;
         margin-bottom: 0.25rem;
     }
 
     &__value {
         font-size: 1.25rem;
         font-weight: 700;
-        color: #2563eb;
+        color: #60a5fa;
     }
 }
 
@@ -1076,7 +1074,7 @@ body,
     }
 
     &__missing-icon {
-        color: #9ca3af;
+        color: #d1d5db;
     }
 
     &__stat {
@@ -1108,7 +1106,7 @@ body,
     &__stat-label {
         font-size: 0.875rem;
         line-height: 1.25rem;
-        color: #9ca3af;
+        color: #d1d5db;
     }
 }
 

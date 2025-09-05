@@ -92,6 +92,11 @@
                   View Jobs
                 </Button>
               </NuxtLink>
+              <NuxtLink to="/cache">
+                <Button size="large" severity="secondary" class="summary__actions-button">
+                  Cache Management
+                </Button>
+              </NuxtLink>
                 <Button
                   size="large"
                   severity="secondary"
@@ -462,8 +467,6 @@ const handleFetchAlbumArt = async () => {
   }
   fetchingAlbumArt.value = false;
 };
-
-const isMobile = () => window?.innerWidth || 100000 < 768;
 
 const youtubeUrl = ref("");
 const isProcessing = ref(false);

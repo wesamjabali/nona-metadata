@@ -1,7 +1,14 @@
 import { createErrorResponse, handleOptions } from "./middleware/cors.js";
 import { handleFetchAlbumArt } from "./routes/albumArt.js";
 import { handleServeAlbumArt } from "./routes/albumArtStatic.js";
-import { handleCacheCleanup, handleCacheStats } from "./routes/cache.js";
+import {
+  handleCacheCleanup,
+  handleCacheStats,
+  handleDeleteCacheEntries,
+  handleDeleteJobEntries,
+  handleGetCacheEntries,
+  handleGetJobEntries,
+} from "./routes/cache.js";
 import { handleFileDelete } from "./routes/delete.js";
 import { handleFilesList } from "./routes/files.js";
 import { handleGetAllJobs, handleGetJobStatus } from "./routes/jobs.js";
@@ -47,6 +54,22 @@ export class Router {
 
       if (method === "GET" && pathname === "/cache/stats") {
         return handleCacheStats(this.cache);
+      }
+
+      if (method === "GET" && pathname === "/cache/entries") {
+        return handleGetCacheEntries(request, this.cache);
+      }
+
+      if (method === "GET" && pathname === "/cache/jobs") {
+        return handleGetJobEntries(request, this.cache);
+      }
+
+      if (method === "DELETE" && pathname === "/cache/entries") {
+        return handleDeleteCacheEntries(request, this.cache);
+      }
+
+      if (method === "DELETE" && pathname === "/cache/jobs") {
+        return handleDeleteJobEntries(request, this.cache);
       }
 
       if (method === "POST" && pathname === "/cache/cleanup") {
@@ -107,7 +130,7 @@ export class Router {
       }
 
       return createErrorResponse(
-        "Supported endpoints: GET /, GET /processing-jobs, GET /files, DELETE /files, GET /cache/stats, POST /cache/cleanup, GET /metadata, PATCH /metadata, GET /playlist-info, GET /jobs, GET /jobs/:id, POST /, POST /fetch-album-art, GET /:artist/:album (album art)",
+        "Supported endpoints: GET /, GET /processing-jobs, GET /files, DELETE /files, GET /cache/stats, GET /cache/entries, GET /cache/jobs, DELETE /cache/entries, DELETE /cache/jobs, POST /cache/cleanup, GET /metadata, PATCH /metadata, GET /playlist-info, GET /jobs, GET /jobs/:id, POST /, POST /fetch-album-art, GET /:artist/:album (album art)",
         undefined,
         405
       );

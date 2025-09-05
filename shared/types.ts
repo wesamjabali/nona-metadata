@@ -95,6 +95,59 @@ export interface JobsResponse {
   jobs: ProcessingJob[];
 }
 
+// Cache entry types
+export interface CacheEntry {
+  id: number;
+  url: string;
+  created_at: string;
+  last_accessed: string;
+}
+
+export interface JobCacheEntry {
+  id: string;
+  url: string | null;
+  type: string;
+  status: string;
+  start_time: string;
+  end_time: string | null;
+  playlist_title: string | null;
+  created_at: string;
+  last_accessed: string;
+}
+
+export interface PaginationInfo {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+}
+
+export interface CacheEntriesResponse {
+  entries: CacheEntry[];
+  pagination: PaginationInfo;
+}
+
+export interface JobEntriesResponse {
+  entries: JobCacheEntry[];
+  pagination: PaginationInfo;
+}
+
+export interface DeleteCacheEntriesRequest {
+  ids: number[];
+}
+
+export interface DeleteJobEntriesRequest {
+  ids: string[];
+}
+
+export interface DeleteEntriesResponse {
+  success: boolean;
+  message: string;
+  deletedCount: number;
+}
+
 // Frontend-specific types for computed progress values
 export interface ProcessingJobWithProgress
   extends Omit<ProcessingJob, "progress"> {

@@ -421,6 +421,195 @@ export class CacheManager {
   }
 
   /**
+   * Get paginated cache entries
+   * @param page Page number (1-based)
+   * @param limit Number of entries per page
+   * @param searchTerm Optional search term to filter URLs
+   * @returns Paginated cache entries
+   */
+  getCacheEntries(page: number = 1, limit: number = 20, searchTerm?: string) {
+    try {
+      const offset = (page - 1) * limit;
+
+      let whereClause = "";
+      let countWhereClause = "";
+      const params: any[] = [];
+      const countParams: any[] = [];
+
+      if (searchTerm) {
+        whereClause = "WHERE url LIKE ?";
+        countWhereClause = "WHERE url LIKE ?";
+        params.push(`%${searchTerm}%`);
+        countParams.push(`%${searchTerm}%`);
+      }
+
+      const entriesQuery = this.db.prepare(`
+        SELECT 
+          id,
+          url,
+          created_at,
+          last_accessed
+        FROM url_cache 
+        ${whereClause}
+        ORDER BY last_accessed DESC 
+        LIMIT ? OFFSET ?
+      `);
+
+      const countQuery = this.db.prepare(`
+        SELECT COUNT(*) as total FROM url_cache ${countWhereClause}
+      `);
+
+      const entries = entriesQuery.all(...params, limit, offset);
+      const { total } = countQuery.get(...countParams) as { total: number };
+
+      return {
+        entries,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+          hasNext: page * limit < total,
+          hasPrev: page > 1,
+        },
+      };
+    } catch (error) {
+      console.warn(`Failed to get cache entries:`, error);
+      return {
+        entries: [],
+        pagination: {
+          page: 1,
+          limit,
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false,
+        },
+      };
+    }
+  }
+
+  /**
+   * Get paginated job entries
+   * @param page Page number (1-based)
+   * @param limit Number of entries per page
+   * @param statusFilter Optional status filter
+   * @returns Paginated job entries
+   */
+  getJobEntries(page: number = 1, limit: number = 20, statusFilter?: string) {
+    try {
+      const offset = (page - 1) * limit;
+
+      let whereClause = "";
+      let countWhereClause = "";
+      const params: any[] = [];
+      const countParams: any[] = [];
+
+      if (statusFilter) {
+        whereClause = "WHERE status = ?";
+        countWhereClause = "WHERE status = ?";
+        params.push(statusFilter);
+        countParams.push(statusFilter);
+      }
+
+      const entriesQuery = this.db.prepare(`
+        SELECT 
+          id,
+          url,
+          type,
+          status,
+          start_time,
+          end_time,
+          playlist_title,
+          created_at,
+          last_accessed
+        FROM jobs_cache 
+        ${whereClause}
+        ORDER BY start_time DESC 
+        LIMIT ? OFFSET ?
+      `);
+
+      const countQuery = this.db.prepare(`
+        SELECT COUNT(*) as total FROM jobs_cache ${countWhereClause}
+      `);
+
+      const entries = entriesQuery.all(...params, limit, offset);
+      const { total } = countQuery.get(...countParams) as { total: number };
+
+      return {
+        entries,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+          hasNext: page * limit < total,
+          hasPrev: page > 1,
+        },
+      };
+    } catch (error) {
+      console.warn(`Failed to get job entries:`, error);
+      return {
+        entries: [],
+        pagination: {
+          page: 1,
+          limit,
+          total: 0,
+          totalPages: 0,
+          hasNext: false,
+          hasPrev: false,
+        },
+      };
+    }
+  }
+
+  /**
+   * Delete multiple cache entries by IDs
+   * @param ids Array of entry IDs to delete
+   * @returns Number of deleted entries
+   */
+  deleteCacheEntries(ids: number[]): number {
+    try {
+      if (ids.length === 0) return 0;
+
+      const placeholders = ids.map(() => "?").join(",");
+      const deleteQuery = this.db.prepare(`
+        DELETE FROM url_cache WHERE id IN (${placeholders})
+      `);
+
+      const result = deleteQuery.run(...ids);
+      console.log(`🗑️ Deleted ${result.changes} cache entries`);
+      return result.changes;
+    } catch (error) {
+      console.warn(`Failed to delete cache entries:`, error);
+      return 0;
+    }
+  }
+
+  /**
+   * Delete multiple job entries by IDs
+   * @param ids Array of job IDs to delete
+   * @returns Number of deleted entries
+   */
+  deleteJobEntries(ids: string[]): number {
+    try {
+      if (ids.length === 0) return 0;
+
+      const placeholders = ids.map(() => "?").join(",");
+      const deleteQuery = this.db.prepare(`
+        DELETE FROM jobs_cache WHERE id IN (${placeholders})
+      `);
+
+      const result = deleteQuery.run(...ids);
+      console.log(`🗑️ Deleted ${result.changes} job entries`);
+      return result.changes;
+    } catch (error) {
+      console.warn(`Failed to delete job entries:`, error);
+      return 0;
+    }
+  }
+
+  /**
    * Update all processing jobs to stopped status on server startup
    */
   stopAllProcessingJobs(): number {

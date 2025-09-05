@@ -1,4 +1,10 @@
-import type { JobsResponse, ProcessingJob } from "~/types/api";
+import type {
+  CacheEntriesResponse,
+  DeleteEntriesResponse,
+  JobEntriesResponse,
+  JobsResponse,
+  ProcessingJob,
+} from "~/types/api";
 
 // API composable for YouTube Metadata API
 export const useApi = () => {
@@ -12,8 +18,12 @@ export const useApi = () => {
         ...options,
       });
       return { data: response, error: null };
-    } catch (error: any) {
-      return { data: null, error: error.data || error };
+    } catch (error: unknown) {
+      const apiError = error as { data?: unknown } | Error;
+      return {
+        data: null,
+        error: ("data" in apiError && apiError.data) || apiError,
+      };
     }
   };
 
@@ -82,6 +92,48 @@ export const useApi = () => {
     });
   };
 
+  const getCacheEntries = async (page = 1, limit = 20, search?: string) => {
+    const params: Record<string, string> = {
+      page: page.toString(),
+      limit: limit.toString(),
+    };
+    if (search) {
+      params.search = search;
+    }
+
+    return await apiCall<CacheEntriesResponse>("/cache/entries", {
+      query: params,
+    });
+  };
+
+  const getJobEntries = async (page = 1, limit = 20, status?: string) => {
+    const params: Record<string, string> = {
+      page: page.toString(),
+      limit: limit.toString(),
+    };
+    if (status) {
+      params.status = status;
+    }
+
+    return await apiCall<JobEntriesResponse>("/cache/jobs", {
+      query: params,
+    });
+  };
+
+  const deleteCacheEntries = async (ids: number[]) => {
+    return await apiCall<DeleteEntriesResponse>("/cache/entries", {
+      method: "DELETE",
+      body: { ids },
+    });
+  };
+
+  const deleteJobEntries = async (ids: string[]) => {
+    return await apiCall<DeleteEntriesResponse>("/cache/jobs", {
+      method: "DELETE",
+      body: { ids },
+    });
+  };
+
   return {
     processYouTubeUrl,
     getFiles,
@@ -94,5 +146,9 @@ export const useApi = () => {
     fetchAlbumArt,
     getCacheStats,
     cleanupCache,
+    getCacheEntries,
+    getJobEntries,
+    deleteCacheEntries,
+    deleteJobEntries,
   };
 };
