@@ -99,6 +99,23 @@ export const systemInstruction = `You are a metadata search and extraction speci
 }`;
 
 // Buffer sizes for various operations
+// Path normalization patterns
+export const pathNormalization = {
+  // Regex for removing unsafe filesystem characters
+  unsafeCharsRegex: /[<>:"/\\|?*]/g,
+  // Regex for normalizing whitespace
+  whitespaceRegex: /\s+/g,
+  // Regex for removing non-word characters (except spaces) for fuzzy matching
+  nonWordCharsRegex: /[^\w\s]/g,
+  // Regex for detecting file extensions
+  fileExtensionRegex: /\.[a-zA-Z0-9]{2,4}$/,
+  // Regex for removing file extensions (only when at end of filename)
+  removeExtensionRegex: /\.[^.]+$/,
+  // Maximum filename length
+  maxFilenameLength: 100,
+} as const;
+
+// Buffer sizes for various operations
 export const bufferSizes = {
   command: 1024 * 1024 * 5,
   ffmpeg: 1024 * 1024 * 10,

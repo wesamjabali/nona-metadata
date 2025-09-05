@@ -1,4 +1,5 @@
 import { discogsApiKey } from "../config/constants.js";
+import { normalizeForMatching, removeFileExtension } from "../utils/file.js";
 
 type MusicBrainzRelease = {
   id: string;
@@ -155,19 +156,12 @@ async function searchMusicBrainzByArtistOnly(
       return null;
     }
 
-    const normalizeTitle = (title: string) =>
-      title
-        .toLowerCase()
-        .replace(/[^\w\s]/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-
-    const targetAlbum = normalizeTitle(album);
-
     const matchingRelease = data.releases.find((release) => {
       if (!release["release-group"]?.id) return false;
 
-      const releaseTitle = normalizeTitle(release.title);
+      // First try exact case-insensitive match
+      const releaseTitle = release.title.toLowerCase();
+      const targetAlbum = album.toLowerCase();
 
       if (releaseTitle === targetAlbum) {
         console.log(`Exact match found: "${release.title}" matches "${album}"`);
@@ -184,10 +178,14 @@ async function searchMusicBrainzByArtistOnly(
         return true;
       }
 
-      const targetWords = targetAlbum
+      // Only use fuzzy matching as a last resort
+      const normalizedReleaseTitle = normalizeForMatching(release.title);
+      const normalizedTargetAlbum = normalizeForMatching(album);
+
+      const targetWords = normalizedTargetAlbum
         .split(" ")
         .filter((word) => word.length > 2);
-      const releaseWords = releaseTitle.split(" ");
+      const releaseWords = normalizedReleaseTitle.split(" ");
       const matchingWords = targetWords.filter((word) =>
         releaseWords.some(
           (releaseWord) =>
@@ -587,7 +585,7 @@ export async function saveAlbumArt(
 ): Promise<string | null> {
   try {
     const extension = getExtensionFromContentType(contentType);
-    const filePath = basePath.replace(/\.[^.]+$/, "") + extension;
+    const filePath = removeFileExtension(basePath) + extension;
 
     await Bun.write(filePath, new Uint8Array(imageData));
     console.log(`Successfully saved album cover to ${filePath}`);

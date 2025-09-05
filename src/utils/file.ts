@@ -1,7 +1,7 @@
 import { promises as fs } from "fs";
 import { mkdir } from "fs/promises";
 import { join } from "path";
-import { baseDirectory } from "../config/constants.js";
+import { baseDirectory, pathNormalization } from "../config/constants.js";
 
 /**
  * Clean up orphaned temporary files on startup
@@ -47,10 +47,38 @@ export async function cleanupOrphanedTempFiles(): Promise<void> {
  */
 export function sanitizeFileName(name: string): string {
   return name
-    .replace(/[<>:"/\\|?*]/g, "")
-    .replace(/\s+/g, " ")
+    .replace(pathNormalization.unsafeCharsRegex, "")
+    .replace(pathNormalization.whitespaceRegex, " ")
     .trim()
-    .slice(0, 100);
+    .slice(0, pathNormalization.maxFilenameLength);
+}
+
+/**
+ * Safely removes file extension from a path, only if the path actually ends with an extension.
+ * @param path The file path to process.
+ * @returns The path without extension if it had one, otherwise the original path.
+ */
+export function removeFileExtension(path: string): string {
+  const pathParts = path.split("/");
+  const fileName = pathParts[pathParts.length - 1] || "";
+  const hasExtension = pathNormalization.fileExtensionRegex.test(fileName);
+
+  return hasExtension
+    ? path.replace(pathNormalization.removeExtensionRegex, "")
+    : path;
+}
+
+/**
+ * Normalizes a title for fuzzy matching by removing non-word characters and extra whitespace.
+ * @param title The title to normalize.
+ * @returns A normalized title for comparison.
+ */
+export function normalizeForMatching(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(pathNormalization.nonWordCharsRegex, " ")
+    .replace(pathNormalization.whitespaceRegex, " ")
+    .trim();
 }
 
 /**

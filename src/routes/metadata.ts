@@ -1,6 +1,6 @@
 import { stat } from "fs/promises";
 import { basename, extname, join, resolve } from "path";
-import { baseDirectory } from "../config/constants.js";
+import { baseDirectory, pathNormalization } from "../config/constants.js";
 import { createErrorResponse, createJsonResponse } from "../middleware/cors.js";
 import { getFileMetadata, updateFileMetadata } from "../services/metadata.js";
 import type { MetadataRequest } from "../types/metadata.js";
@@ -112,8 +112,8 @@ export async function handleUpdateMetadata(
       if (newTitle !== undefined) {
         const sanitizedTitle =
           newTitle && newTitle.trim()
-            ? newTitle.replace(/[<>:"/\\|?*]/g, "").trim()
-            : "Unknown Title";
+            ? newTitle.replace(pathNormalization.unsafeCharsRegex, "").trim()
+            : undefined;
         newFilename = `${sanitizedTitle}${currentExtension}`;
       } else {
         newFilename = basename(absoluteFilePath);
