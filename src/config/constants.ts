@@ -48,7 +48,7 @@ export const systemInstruction = `You are a metadata search and extraction speci
     For genre, use standard music genres like "Pop", "Rock", "Hip hop", "Jazz", "Classical", "Electronic", etc. 
     For genre, make sure only the first word is capitalized. (Eg: Arabic hip-hop)
     For language, use the ISO 639-1 code.
-    For album, if unknown, set to be the same as the title. DO NOT make it "Unknown Album" or anything similar.
+    For album, if unknown, set it to "Unknown Album" exactly. No quotes.
     For album, Never add things like EP or Single or anything else. Only the album name.
     For disc, if unknown, set to 1.
 
@@ -56,7 +56,6 @@ export const systemInstruction = `You are a metadata search and extraction speci
     Do not use markdown, code blocks, or any explanatory text.
     The output must be immediately parsable by JSON.parse().
 
-    
     Respond with the metadata ONLY in the following schema:
     {
       "title": "STRING",
