@@ -475,7 +475,7 @@ const error = ref("");
 const filesData = ref({ baseDirectory: "", totalFiles: 0, files: [] });
 const searchQuery = ref("");
 const selectedFiles = ref([]);
-const pageSize = ref(isMobile() ? 25 : 100);
+const pageSize = ref(50);
 const multiSelectEnabled = ref(false);
 
 const selectedFile = ref("");
