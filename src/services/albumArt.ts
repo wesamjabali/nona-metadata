@@ -319,22 +319,15 @@ async function searchMusicBrainzByFuzzyArtist(
       return null;
     }
 
-    const normalizeTitle = (title: string) =>
-      title
-        .toLowerCase()
-        .replace(/[^\w\s]/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-
-    const targetArtist = normalizeTitle(artist);
-    const targetAlbum = normalizeTitle(album);
+    const targetArtist = artist;
+    const targetAlbum = album;
 
     const matchingRelease = data.releases.find((release) => {
       if (!release["release-group"]?.id) return false;
 
-      const releaseTitle = normalizeTitle(release.title);
+      const releaseTitle = release.title;
       const artistCredit = release["artist-credit"]?.[0]?.artist?.name;
-      const releaseArtist = artistCredit ? normalizeTitle(artistCredit) : "";
+      const releaseArtist = artistCredit ?? "";
 
       const artistWords = targetArtist.split(" ").filter((w) => w.length > 2);
       const releaseArtistWords = releaseArtist.split(" ");
