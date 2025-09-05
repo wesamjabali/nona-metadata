@@ -7,7 +7,7 @@ export interface ProcessingJob {
   id: string;
   url?: string;
   type: "single" | "playlist" | "album-art";
-  status: "processing" | "completed" | "failed";
+  status: "processing" | "completed" | "failed" | "stopped";
   startTime: Date | string;
   endTime?: Date | string;
   progress?: {
@@ -49,6 +49,7 @@ export interface CacheStats {
   processingJobs: number;
   completedJobs: number;
   failedJobs: number;
+  stoppedJobs: number;
 }
 
 export interface ProcessVideoRequest {

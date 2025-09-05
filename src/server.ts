@@ -10,6 +10,9 @@ console.log("Model initialized. Bun server starting...");
 // Initialize cache manager
 const cache = new CacheManager();
 
+// Stop any processing jobs from previous server runs
+cache.stopAllProcessingJobs();
+
 // Initialize job tracker with cache manager for persistence
 const jobTracker = new JobTracker(cache);
 

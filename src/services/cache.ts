@@ -364,7 +364,8 @@ export class CacheManager {
           COUNT(*) as total,
           COUNT(CASE WHEN status = 'processing' THEN 1 END) as processing,
           COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed,
-          COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed
+          COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed,
+          COUNT(CASE WHEN status = 'stopped' THEN 1 END) as stopped
         FROM jobs_cache
       `);
       const jobStats = jobStatsQuery.get() as any;
@@ -377,6 +378,7 @@ export class CacheManager {
         processingJobs: jobStats?.processing || 0,
         completedJobs: jobStats?.completed || 0,
         failedJobs: jobStats?.failed || 0,
+        stoppedJobs: jobStats?.stopped || 0,
       };
     } catch (error) {
       console.warn(`Failed to get cache stats:`, error);
@@ -388,7 +390,35 @@ export class CacheManager {
         processingJobs: 0,
         completedJobs: 0,
         failedJobs: 0,
+        stoppedJobs: 0,
       };
+    }
+  }
+
+  /**
+   * Update all processing jobs to stopped status on server startup
+   */
+  stopAllProcessingJobs(): number {
+    try {
+      const updateQuery = this.db.prepare(`
+        UPDATE jobs_cache 
+        SET status = 'stopped', end_time = CURRENT_TIMESTAMP 
+        WHERE status = 'processing'
+      `);
+
+      const result = updateQuery.run();
+      const changedCount = result.changes;
+
+      if (changedCount > 0) {
+        console.log(`🛑 Stopped ${changedCount} processing jobs on startup`);
+      } else {
+        console.log(`✅ No processing jobs found to stop`);
+      }
+
+      return changedCount;
+    } catch (error) {
+      console.warn(`Failed to stop processing jobs:`, error);
+      return 0;
     }
   }
 

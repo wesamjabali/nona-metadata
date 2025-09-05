@@ -365,6 +365,8 @@ const getStatusSeverity = (status: string): string => {
       return "success";
     case "failed":
       return "danger";
+    case "stopped":
+      return "secondary";
     default:
       return "secondary";
   }
