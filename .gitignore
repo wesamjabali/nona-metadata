@@ -1,6 +1,11 @@
+# Specific to this project
+
 music
-cache.*
-# dependencies (bun install)
+cache.sqlite
+cache.sqlite-shm
+cache.sqlite-wal
+
+# dependencies
 node_modules
 
 # output
@@ -34,3 +39,4 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # Finder (MacOS) folder config
 .DS_Store
+.vscode

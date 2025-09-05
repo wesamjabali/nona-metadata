@@ -22,9 +22,9 @@ Nona-Metadata is a powerful, AI-driven music curation system that transforms You
 ### ✨ Key Features
 
 - 🎯 **AI-Powered Metadata Extraction** - Uses Google Gemini to intelligently identify artist, album, track info, BPM, and more
-- 📁 **Automatic Organization** - Creates clean folder structures: `Artist/Album/Track.mp3`
+- 📁 **Automatic Organization** - Creates clean folder structures: `Artist/Album/Track.m4a`
 - 🎵 **Playlist Support** - Download and organize entire YouTube playlists with track numbering
-- 🏷️ **Rich Metadata Tagging** - Automatically adds title, artist, album, year, genre, language, and BPM
+- 🏷️ **Rich Metadata Tagging** - Automatically adds title, artist, album, genre, language, and BPM
 - 🔧 **Metadata Editor** - Web interface to view and edit metadata for existing files
 - 💾 **Intelligent Caching** - SQLite-based caching system to speed up repeated requests and reduce AI API calls
 - ⚡ **High Performance** - Built with Bun for lightning-fast execution
@@ -102,41 +102,41 @@ Make sure you have the following installed:
    ```
 
 5. **Access the web interface**
-   - API Server: http://localhost:3000
+   - API Server: http://localhost:80
    - Web Interface: http://localhost:80
 
 ## 💡 Usage Examples
 
 ### Download a Single Video
 ```bash
-curl -X POST http://localhost:3000/ \
+curl -X POST http://localhost:80/ \
   -H "Content-Type: application/json" \
   -d '{"prompt": "https://www.youtube.com/watch?v=VIDEO_ID"}'
 ```
 
 ### Process a Playlist
 ```bash
-curl -X POST http://localhost:3000/ \
+curl -X POST http://localhost:80/ \
   -H "Content-Type: application/json" \
   -d '{"prompt": "https://www.youtube.com/playlist?list=PLAYLIST_ID"}'
 ```
 
 ### List Your Music Files
 ```bash
-curl http://localhost:3000/files
+curl http://localhost:80/files
 ```
 
 ### Get File Metadata
 ```bash
-curl "http://localhost:3000/metadata?file=Artist/Album/Song.mp3"
+curl "http://localhost:80/metadata?file=Artist/Album/Song.m4a"
 ```
 
 ### Update Metadata
 ```bash
-curl -X PATCH http://localhost:3000/metadata \
+curl -X PATCH http://localhost:80/metadata \
   -H "Content-Type: application/json" \
   -d '{
-    "file": "Artist/Album/Song.mp3",
+    "file": "Artist/Album/Song.m4a",
     "tags": {
       "title": "New Title",
       "artist": "New Artist"
@@ -148,12 +148,12 @@ curl -X PATCH http://localhost:3000/metadata \
 
 #### Get Cache Statistics
 ```bash
-curl http://localhost:3000/cache/stats
+curl http://localhost:80/cache/stats
 ```
 
 #### Clean Up Cache (remove entries older than 30 days)
 ```bash
-curl -X POST http://localhost:3000/cache/cleanup \
+curl -X POST http://localhost:80/cache/cleanup \
   -H "Content-Type: application/json" \
   -d '{"daysOld": 30}'
 ```
@@ -173,7 +173,7 @@ nona-metadata/
 └── music/             # Organized music library
     └── Artist/
         └── Album/
-            └── Track.mp3
+            └── Track.m4a
 ```
 
 ## 💾 Intelligent Caching System
@@ -218,12 +218,12 @@ Nona-Metadata features a sophisticated SQLite-based caching system that dramatic
 
 1. **Input**: Provide a YouTube URL (video or playlist)
 2. **Cache Check**: System first checks if metadata for this URL already exists in cache
-3. **Download**: yt-dlp extracts audio as MP3 (if not cached)
+3. **Download**: yt-dlp extracts audio as M4A (if not cached)
 4. **AI Analysis**: Gemini AI analyzes video metadata and searches for accurate song information (if not cached)
 5. **Cache Storage**: AI-generated metadata is stored in SQLite cache for future use
 6. **Enhancement**: AI corrects titles, identifies artists, albums, BPM, genres, and more
-7. **Organization**: Files are automatically organized in `Artist/Album/Track.mp3` structure
-8. **Tagging**: Rich metadata is embedded directly into MP3 files
+7. **Organization**: Files are automatically organized in `Artist/Album/Track.m4a` structure
+8. **Tagging**: Rich metadata is embedded directly into M4A files
 9. **Management**: Use the web interface to browse, edit your library, and manage cache
 
 ## 🔧 Configuration
