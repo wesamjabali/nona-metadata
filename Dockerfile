@@ -18,7 +18,7 @@ COPY . .
 
 RUN cd frontend && bun install --frozen-lockfile && bun run generate
 
-RUN cp -r frontend/dist/* /app/
+RUN cp -r frontend/.output/public/* /app/
 
 RUN mkdir -p /app/cache && chmod 755 /app/cache
 

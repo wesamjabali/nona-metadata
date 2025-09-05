@@ -31,10 +31,57 @@ const getMimeType = (filePath: string): string => {
 };
 
 /**
+ * Check if we're in production (Docker environment)
+ */
+const isProduction = async (): Promise<boolean> => {
+  // Check if we have the production files in the current directory
+  const indexExists = await Bun.file("index.html").exists();
+  return indexExists;
+};
+
+/**
+ * Get the main HTML file path based on environment
+ */
+const getMainHtmlPath = async (): Promise<string> => {
+  const production = await isProduction();
+  return production ? "index.html" : "frontend/.output/public/index.html";
+};
+
+/**
+ * Get the appropriate file path based on environment
+ */
+const getFilePath = async (pathname: string): Promise<string> => {
+  const production = await isProduction();
+
+  if (pathname === "/favicon.ico") {
+    return production ? "favicon.ico" : "frontend/.output/public/favicon.ico";
+  } else if (pathname.startsWith("/_nuxt/")) {
+    return production ? `.${pathname}` : `frontend/.output/public${pathname}`;
+  } else if (pathname === "/_payload.json") {
+    return production
+      ? "_payload.json"
+      : "frontend/.output/public/_payload.json";
+  } else if (
+    pathname.startsWith("/cache/") &&
+    pathname.endsWith("/_payload.json")
+  ) {
+    return production ? `.${pathname}` : `frontend/.output/public${pathname}`;
+  } else if (
+    pathname.startsWith("/jobs/") &&
+    pathname.endsWith("/_payload.json")
+  ) {
+    return production ? `.${pathname}` : `frontend/.output/public${pathname}`;
+  }
+
+  return "";
+};
+
+/**
  * Handle the root route - serve the HTML frontend
  */
 export async function handleRoot(request: Request): Promise<Response> {
-  const htmlContent = await Bun.file("./index.html").text();
+  const htmlPath = await getMainHtmlPath();
+  const htmlContent = await Bun.file(htmlPath).text();
   const injectedHtml = injectValues(htmlContent);
 
   return new Response(injectedHtml, {
@@ -43,17 +90,30 @@ export async function handleRoot(request: Request): Promise<Response> {
 }
 
 /**
- * Handle the processing jobs route - serve the processing jobs HTML page
+ * Handle any Vue route - serve the same HTML and let Vue Router handle client-side routing
  */
-export async function handleProcessingJobs(
-  request: Request
-): Promise<Response> {
-  const htmlContent = await Bun.file("./processing-jobs.html").text();
+export async function handleVueRoute(request: Request): Promise<Response> {
+  const htmlPath = await getMainHtmlPath();
+  const htmlContent = await Bun.file(htmlPath).text();
   const injectedHtml = injectValues(htmlContent);
+
+  if (!injectedHtml) {
+    return createErrorResponse("Not Found", undefined, 404);
+  }
 
   return new Response(injectedHtml, {
     headers: { "Content-Type": "text/html" },
   });
+}
+
+/**
+ * Handle the processing jobs route - serve the processing jobs HTML page
+ * @deprecated Use handleVueRoute instead for SPA routing
+ */
+export async function handleProcessingJobs(
+  request: Request
+): Promise<Response> {
+  return handleVueRoute(request);
 }
 
 /**
@@ -67,25 +127,9 @@ export async function handleStaticFile(request: Request): Promise<Response> {
     return createErrorResponse("Invalid file path", undefined, 400);
   }
 
-  let filePath: string;
+  const filePath = await getFilePath(pathname);
 
-  if (pathname === "/favicon.ico") {
-    filePath = "frontend/dist/favicon.ico";
-  } else if (pathname.startsWith("/_nuxt/")) {
-    filePath = `frontend/dist${pathname}`;
-  } else if (pathname === "/_payload.json") {
-    filePath = "frontend/dist/_payload.json";
-  } else if (
-    pathname.startsWith("/cache/") &&
-    pathname.endsWith("/_payload.json")
-  ) {
-    filePath = `frontend/dist${pathname}`;
-  } else if (
-    pathname.startsWith("/jobs/") &&
-    pathname.endsWith("/_payload.json")
-  ) {
-    filePath = `frontend/dist${pathname}`;
-  } else {
+  if (!filePath) {
     return createErrorResponse("File not found", undefined, 404);
   }
 

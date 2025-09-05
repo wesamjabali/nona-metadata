@@ -42,6 +42,7 @@ export const systemInstruction = `You are a metadata search and extraction speci
     Example 2: Coldplay - Hymn for the Weekend (Official Video) => title: Hymn for the Weekend artist: coldplay
 
     For artist, only list one artist, the main one. Do not add features, additions, etc. Just list the primary artist.
+    For artist, use the most common/standard name format. For example: use "Emel Mathlouthi" instead of "EMEL" or "Emel", use "A-ha" instead of "a-ha" or "A-Ha".
     For bpm, you should google the beats per minute of a song. 
     For mood, analyze or search for the emotional tone of the song (e.g., "Happy", "Melancholic", "Energetic", "Chill").
     For genre, use standard music genres like "Pop", "Rock", "Hip hop", "Jazz", "Classical", "Electronic", etc. 

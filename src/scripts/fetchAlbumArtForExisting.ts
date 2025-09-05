@@ -70,8 +70,10 @@ async function fetchAlbumArtForExistingFiles(
           continue;
         }
 
-        if (!album || album === 'Unknown Album') {
-          console.log(`⚠️  No album found in metadata or album is 'Unknown Album', skipping...`);
+        if (!album || album === "Unknown Album") {
+          console.log(
+            `⚠️  No album found in metadata or album is 'Unknown Album', skipping...`
+          );
           processed++;
           continue;
         }

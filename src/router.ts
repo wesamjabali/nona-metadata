@@ -8,9 +8,9 @@ import { handleGetAllJobs, handleGetJobStatus } from "./routes/jobs.js";
 import { handleGetMetadata, handleUpdateMetadata } from "./routes/metadata.js";
 import { handlePlaylistInfo, handleProcessVideo } from "./routes/process.js";
 import {
-  handleProcessingJobs,
   handleRoot,
   handleStaticFile,
+  handleVueRoute,
 } from "./routes/static.js";
 import { CacheManager } from "./services/cache.js";
 import { JobTracker } from "./services/jobTracker.js";
@@ -32,10 +32,15 @@ export class Router {
         return handleRoot(request);
       }
 
-      if (method === "GET" && pathname === "/processing-jobs") {
-        return handleProcessingJobs(request);
+      if (
+        method === "GET" &&
+        pathname.startsWith("/jobs/") &&
+        pathname.split("/").length === 3
+      ) {
+        return handleGetJobStatus(request, this.jobTracker);
       }
 
+      // API routes that should be handled before Vue routes
       if (method === "GET" && pathname === "/files") {
         return handleFilesList(request);
       }
@@ -64,15 +69,13 @@ export class Router {
         return handlePlaylistInfo(request);
       }
 
-      if (
-        method === "GET" &&
-        pathname.startsWith("/jobs/") &&
-        pathname.split("/").length === 3
-      ) {
-        return handleGetJobStatus(request, this.jobTracker);
-      }
-
       if (method === "GET" && pathname === "/jobs") {
+        // Check if this is a request for the jobs page (HTML) vs API
+        const acceptHeader = request.headers.get("accept") || "";
+        if (acceptHeader.includes("text/html")) {
+          return handleVueRoute(request);
+        }
+        // Otherwise handle as API
         return handleGetAllJobs(request, this.jobTracker);
       }
 
@@ -99,6 +102,12 @@ export class Router {
             pathname.endsWith("/_payload.json")))
       ) {
         return handleStaticFile(request);
+      }
+
+      if (method === "GET") {
+        if (!pathname.startsWith("/api/") && pathname !== "/favicon.ico") {
+          return handleVueRoute(request);
+        }
       }
 
       return createErrorResponse(
