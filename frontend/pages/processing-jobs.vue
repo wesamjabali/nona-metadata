@@ -190,9 +190,6 @@
                       </div>
                       <div v-else class="flex items-center">
                         <i class="pi pi-times text-gray-400"/>
-                        <span class="ml-2 text-sm text-gray-400"
-                          >N/A</span
-                        >
                       </div>
                     </template>
                   </Column>
