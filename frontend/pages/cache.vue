@@ -139,6 +139,9 @@
                 data-key="id"
                 paginator
                 :rows="urlEntriesPerPage"
+                :rows-per-page-options="[25, 50, 100, 1000, 10000]"
+                paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink CurrentPageReport NextPageLink LastPageLink"
+                current-page-report-template="Showing {first} to {last} of {totalRecords} entries"
                 :total-records="urlTotalRecords"
                 :lazy="true"
                 class="cache-entries__table"
@@ -210,6 +213,9 @@
                 data-key="id"
                 paginator
                 :rows="jobEntriesPerPage"
+                :rows-per-page-options="[25, 50, 100, 1000, 10000]"
+                paginator-template="RowsPerPageDropdown FirstPageLink PrevPageLink CurrentPageReport NextPageLink LastPageLink"
+                current-page-report-template="Showing {first} to {last} of {totalRecords} entries"
                 :total-records="jobTotalRecords"
                 :lazy="true"
                 class="cache-entries__table"
@@ -281,7 +287,7 @@ const loadingUrlEntries = ref(false);
 const deletingUrlEntries = ref(false);
 const urlSearchTerm = ref("");
 const urlCurrentPage = ref(1);
-const urlEntriesPerPage = ref(20);
+const urlEntriesPerPage = ref(100);
 const urlTotalRecords = ref(0);
 
 // Job entries state
@@ -291,7 +297,7 @@ const loadingJobEntries = ref(false);
 const deletingJobEntries = ref(false);
 const jobStatusFilter = ref(null);
 const jobCurrentPage = ref(1);
-const jobEntriesPerPage = ref(20);
+const jobEntriesPerPage = ref(25);
 const jobTotalRecords = ref(0);
 
 // Job status options for dropdown
