@@ -123,7 +123,7 @@ export async function handleUpdateMetadata(
         newArtist !== currentArtist ? newArtist : currentArtist;
       const albumToUse = newAlbum !== currentAlbum ? newAlbum : currentAlbum;
 
-      const finalAlbumToUse = albumToUse || "Unknown Album";
+      const finalAlbumToUse = albumToUse;
 
       console.log(
         `Moving file due to metadata change - Artist: ${currentArtist} -> ${artistToUse}, Album: ${currentAlbum} -> ${finalAlbumToUse}, Title: ${currentTitle} -> ${
