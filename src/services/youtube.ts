@@ -220,10 +220,10 @@ export function downloadVideo(
         "yt-dlp",
         [
           "-f",
-          "bestaudio[ext=m4a]/bestaudio[acodec=aac]/bestaudio",
+          "bestaudio[ext=m4a]/bestaudio[ext=mp3]/bestaudio[acodec=aac]/bestaudio",
           "-x",
           "--audio-format",
-          "m4a",
+          "best",
           "--socket-timeout",
           "30",
           "--retries",
