@@ -6,9 +6,10 @@ RUN apk update && \
     apk add --no-cache \
     curl \
     ffmpeg \
+    git \
     python3 \
     py3-pip && \
-    python3 -m pip install --break-system-packages -U yt-dlp
+    python3 -m pip install --break-system-packages git+https://github.com/yt-dlp/yt-dlp.git
 
 COPY package.json bun.lock ./
 
