@@ -1,0 +1,13 @@
+services:
+  app:
+    build: .
+    ports:
+      - "80:80"
+    volumes:
+      - cache:/app/cache
+    environment:
+      - CACHE_DIR=/app/cache
+    restart: unless-stopped
+
+volumes:
+  cache:
