@@ -16,12 +16,12 @@ export async function cleanupOrphanedTempFiles(): Promise<void> {
     const tempFiles = files.filter(
       (file) =>
         file.startsWith("temp_") &&
-        (file.endsWith(".m4a") || file.includes("_ffmpeg_temp"))
+        (file.endsWith(".m4a") || file.includes("_ffmpeg_temp")),
     );
 
     if (tempFiles.length > 0) {
       console.log(
-        `Found ${tempFiles.length} orphaned temporary files, cleaning up...`
+        `Found ${tempFiles.length} orphaned temporary files, cleaning up...`,
       );
 
       for (const tempFile of tempFiles) {
@@ -34,7 +34,7 @@ export async function cleanupOrphanedTempFiles(): Promise<void> {
       }
 
       console.log(
-        `✅ Cleanup complete: removed ${tempFiles.length} orphaned temporary files`
+        `✅ Cleanup complete: removed ${tempFiles.length} orphaned temporary files`,
       );
     }
   } catch (error) {
@@ -110,7 +110,7 @@ export async function ensureDirectory(dirPath: string): Promise<void> {
 export function getOrganizedFilePath(
   artist: string,
   album: string | null,
-  title: string
+  title: string,
 ): string {
   const sanitizedArtist = sanitizeFileName(artist) || "Unknown Artist";
   const sanitizedTitle = sanitizeFileName(title) || "Unknown Title";
@@ -120,7 +120,7 @@ export function getOrganizedFilePath(
     baseDirectory,
     sanitizedArtist,
     sanitizedAlbum,
-    `${sanitizedTitle}.m4a`
+    `${sanitizedTitle}.m4a`,
   );
 }
 
@@ -132,7 +132,7 @@ export function getOrganizedFilePath(
  */
 export async function getAlbumArtPath(
   artist: string,
-  album: string | null
+  album: string | null,
 ): Promise<string | null> {
   if (album === null || album === "" || album === "Unknown Album") {
     return null;
@@ -154,7 +154,7 @@ export async function getAlbumArtPath(
  * @returns The actual file path if found, null otherwise.
  */
 export async function findExistingAlbumArt(
-  basePath: string
+  basePath: string,
 ): Promise<string | null> {
   const possibleExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"];
 
@@ -177,7 +177,12 @@ export async function findExistingAlbumArt(
  * @returns True if the URL contains playlist indicators.
  */
 export function isPlaylistUrl(url: string): boolean {
-  return url.includes("list=") || url.includes("playlist");
+  return (
+    url.includes("list=") ||
+    url.includes("playlist") ||
+    // SoundCloud sets are playlists (e.g. soundcloud.com/<user>/sets/<name>)
+    url.includes("/sets/")
+  );
 }
 
 /**
@@ -188,7 +193,7 @@ export function isPlaylistUrl(url: string): boolean {
  */
 export async function getAlbumDirectoryPath(
   artist: string,
-  album: string
+  album: string,
 ): Promise<string> {
   const actualArtist = await findExistingArtistFolder(artist);
   const actualAlbum = await findExistingAlbumFolder(actualArtist, album);
@@ -204,7 +209,7 @@ export async function getAlbumDirectoryPath(
  */
 export async function findExistingAlbumFiles(
   artist: string,
-  album: string | null
+  album: string | null,
 ): Promise<string[]> {
   if (!album) {
     return [];
@@ -220,7 +225,7 @@ export async function findExistingAlbumFiles(
         file.endsWith(".m4a") ||
         file.endsWith(".mp3") ||
         file.endsWith(".flac") ||
-        file.endsWith(".wav")
+        file.endsWith(".wav"),
     );
 
     return musicFiles.map((file) => join(albumDir, file));

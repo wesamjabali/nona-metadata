@@ -7,7 +7,7 @@ import { bufferSizes } from "../config/constants.js";
 async function retryWithBackoff<T>(
   operation: () => Promise<T>,
   maxRetries: number = 3,
-  baseDelay: number = 2000
+  baseDelay: number = 2000,
 ): Promise<T> {
   let lastError: Error;
 
@@ -24,7 +24,7 @@ async function retryWithBackoff<T>(
       if (attempt === maxRetries) {
         console.error(
           `yt-dlp operation failed after ${maxRetries + 1} attempts:`,
-          lastError.message
+          lastError.message,
         );
         throw lastError;
       }
@@ -34,7 +34,7 @@ async function retryWithBackoff<T>(
         `yt-dlp operation failed (attempt ${attempt + 1}/${
           maxRetries + 1
         }), retrying in ${delay}ms:`,
-        lastError.message
+        lastError.message,
       );
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
@@ -60,7 +60,7 @@ function isNetworkError(error: Error): boolean {
   ];
 
   return networkErrorMessages.some((msg) =>
-    error.message.toLowerCase().includes(msg.toLowerCase())
+    error.message.toLowerCase().includes(msg.toLowerCase()),
   );
 }
 
@@ -75,8 +75,8 @@ export function getPlaylistInfo(playlistUrl: string): Promise<any> {
       child.kill("SIGTERM");
       reject(
         new Error(
-          `Playlist info request timed out after 8 seconds. This may be a large playlist or network issue.`
-        )
+          `Playlist info request timed out after 8 seconds. This may be a large playlist or network issue.`,
+        ),
       );
     }, 30000);
 
@@ -100,7 +100,7 @@ export function getPlaylistInfo(playlistUrl: string): Promise<any> {
 
         if (error) {
           return reject(
-            new Error(`Failed to get playlist info: ${error.message}`)
+            new Error(`Failed to get playlist info: ${error.message}`),
           );
         }
         try {
@@ -119,7 +119,8 @@ export function getPlaylistInfo(playlistUrl: string): Promise<any> {
                 playlistData = jsonObj;
               } else if (
                 jsonObj._type === "url" &&
-                jsonObj.ie_key === "Youtube"
+                (typeof jsonObj.url === "string" ||
+                  typeof jsonObj.id === "string")
               ) {
                 entries.push(jsonObj);
               }
@@ -153,11 +154,11 @@ export function getPlaylistInfo(playlistUrl: string): Promise<any> {
             new Error(
               `Failed to parse yt-dlp JSON output: ${
                 (parseError as any).message
-              }\nOutput: ${stdout.slice(0, 500)}...`
-            )
+              }\nOutput: ${stdout.slice(0, 500)}...`,
+            ),
           );
         }
-      }
+      },
     );
   });
 }
@@ -187,7 +188,7 @@ export function getVideoInfo(videoUrl: string): Promise<any> {
         (error, stdout) => {
           if (error) {
             return reject(
-              new Error(`Failed to get video info: ${error.message}`)
+              new Error(`Failed to get video info: ${error.message}`),
             );
           }
           try {
@@ -198,11 +199,11 @@ export function getVideoInfo(videoUrl: string): Promise<any> {
               new Error(
                 `Failed to parse yt-dlp JSON output: ${
                   (parseError as any).message
-                }`
-              )
+                }`,
+              ),
             );
           }
-        }
+        },
       );
     });
   });
@@ -216,7 +217,7 @@ export function getVideoInfo(videoUrl: string): Promise<any> {
  */
 export function downloadVideo(
   videoUrl: string,
-  outputPath: string
+  outputPath: string,
 ): Promise<void> {
   return retryWithBackoff(() => {
     return new Promise<void>((resolve, reject) => {
@@ -250,7 +251,7 @@ export function downloadVideo(
             console.warn(`yt-dlp output: ${stderr}`);
           }
           resolve();
-        }
+        },
       );
     });
   });

@@ -2,14 +2,14 @@
 
 <div align="center">
 
-**An intelligent YouTube-to-music library system with AI-powered metadata extraction**
+**An intelligent music library system with AI-powered metadata extraction**
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://typescriptlang.org/)
 [![Bun](https://img.shields.io/badge/Bun-000000?style=for-the-badge&logo=bun&logoColor=white)](https://bun.sh/)
 [![Google AI](https://img.shields.io/badge/Google%20AI-4285F4?style=for-the-badge&logo=google&logoColor=white)](https://ai.google.dev/)
 [![FFmpeg](https://img.shields.io/badge/FFmpeg-007808?style=for-the-badge&logo=ffmpeg&logoColor=white)](https://ffmpeg.org/)
 
-*Transform YouTube videos and playlists into a beautifully organized music library with intelligent metadata*
+_Transform media links (YouTube, SoundCloud, and more) into a beautifully organized music library with intelligent metadata_
 
 </div>
 
@@ -17,13 +17,13 @@
 
 ## 🚀 What is Nona-Metadata?
 
-Nona-Metadata is a powerful, AI-driven music curation system that transforms YouTube content into a perfectly organized music library. It downloads audio from YouTube videos/playlists, uses Google's Gemini AI to extract and enhance metadata, and automatically organizes files with proper tags and folder structures.
+Nona-Metadata is a powerful, AI-driven music curation system that transforms content from YouTube, SoundCloud, and other supported links into a perfectly organized music library. It downloads audio from media links/playlists, uses Google's Gemini AI to extract and enhance metadata, and automatically organizes files with proper tags and folder structures.
 
 ### ✨ Key Features
 
 - 🎯 **AI-Powered Metadata Extraction** - Uses Google Gemini to intelligently identify artist, album, track info, BPM, and more
 - 📁 **Automatic Organization** - Creates clean folder structures: `Artist/Album/Track.m4a`
-- 🎵 **Playlist Support** - Download and organize entire YouTube playlists with track numbering
+- 🎵 **Playlist Support** - Download and organize entire playlists with track numbering
 - 🏷️ **Rich Metadata Tagging** - Automatically adds title, artist, album, genre, language, and BPM
 - 🔧 **Metadata Editor** - Web interface to view and edit metadata for existing files
 - 💾 **Intelligent Caching** - SQLite-based caching system to speed up repeated requests and reduce AI API calls
@@ -34,44 +34,50 @@ Nona-Metadata is a powerful, AI-driven music curation system that transforms You
 ## 🛠️ Tech Stack
 
 ### Core Runtime & Language
+
 - **[Bun](https://bun.sh/)** - Ultra-fast JavaScript runtime and package manager
 - **[TypeScript](https://typescriptlang.org/)** - Type-safe JavaScript with modern features
 
 ### AI & External Services
+
 - **[Google Gemini AI](https://ai.google.dev/)** - Advanced AI for metadata extraction and song identification
-- **[yt-dlp](https://github.com/yt-dlp/yt-dlp)** - Robust YouTube video/audio downloader
+- **[yt-dlp](https://github.com/yt-dlp/yt-dlp)** - Robust media downloader (YouTube, SoundCloud, and more)
 - **[FFmpeg](https://ffmpeg.org/)** - Audio processing and metadata manipulation
 
 ### Database & Caching
+
 - **[SQLite](https://sqlite.org/)** - Lightweight database for intelligent caching system
 - **Write-Ahead Logging (WAL)** - Optimized database performance with concurrent read/write access
 
 ### Frontend
+
 - **HTML5** - Modern semantic markup
 - **[Tailwind CSS](https://tailwindcss.com/)** - Utility-first CSS framework
 - **Vanilla JavaScript** - Lightweight, dependency-free frontend
 
 ### API Architecture
+
 - **RESTful HTTP API** - Clean endpoints for all operations
 - **JSON-based communication** - Structured data exchange
 - **CORS-enabled** - Cross-origin resource sharing support
 
 ## 📋 API Endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/` | Download and process YouTube video/playlist |
-| `GET` | `/files` | List all organized music files |
-| `GET` | `/metadata?file=path` | Get metadata for a specific file |
-| `PATCH` | `/metadata` | Update metadata for a file |
-| `GET` | `/cache/stats` | Get cache statistics and information |
-| `POST` | `/cache/cleanup` | Clean up old cache entries |
+| Method  | Endpoint              | Description                                   |
+| ------- | --------------------- | --------------------------------------------- |
+| `POST`  | `/`                   | Download and process a media link or playlist |
+| `GET`   | `/files`              | List all organized music files                |
+| `GET`   | `/metadata?file=path` | Get metadata for a specific file              |
+| `PATCH` | `/metadata`           | Update metadata for a file                    |
+| `GET`   | `/cache/stats`        | Get cache statistics and information          |
+| `POST`  | `/cache/cleanup`      | Clean up old cache entries                    |
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
 Make sure you have the following installed:
+
 - **[Bun](https://bun.sh/)** (latest version)
 - **[yt-dlp](https://github.com/yt-dlp/yt-dlp)** (`pip install yt-dlp`)
 - **[FFmpeg](https://ffmpeg.org/)** (for audio processing)
@@ -79,17 +85,20 @@ Make sure you have the following installed:
 ### Installation
 
 1. **Clone the repository**
+
    ```bash
    git clone <repository-url>
    cd nona-metadata
    ```
 
 2. **Install dependencies**
+
    ```bash
    bun install
    ```
 
 3. **Set up environment variables**
+
    ```bash
    # Create .env file
    echo "GEMINI_API_KEY=your_google_ai_api_key_here" > .env
@@ -97,6 +106,7 @@ Make sure you have the following installed:
    ```
 
 4. **Run the server**
+
    ```bash
    bun run server.ts
    ```
@@ -108,6 +118,7 @@ Make sure you have the following installed:
 ## 💡 Usage Examples
 
 ### Download a Single Video
+
 ```bash
 curl -X POST http://localhost:80/ \
   -H "Content-Type: application/json" \
@@ -115,6 +126,7 @@ curl -X POST http://localhost:80/ \
 ```
 
 ### Process a Playlist
+
 ```bash
 curl -X POST http://localhost:80/ \
   -H "Content-Type: application/json" \
@@ -122,16 +134,19 @@ curl -X POST http://localhost:80/ \
 ```
 
 ### List Your Music Files
+
 ```bash
 curl http://localhost:80/files
 ```
 
 ### Get File Metadata
+
 ```bash
 curl "http://localhost:80/metadata?file=Artist/Album/Song.m4a"
 ```
 
 ### Update Metadata
+
 ```bash
 curl -X PATCH http://localhost:80/metadata \
   -H "Content-Type: application/json" \
@@ -147,11 +162,13 @@ curl -X PATCH http://localhost:80/metadata \
 ### Cache Management
 
 #### Get Cache Statistics
+
 ```bash
 curl http://localhost:80/cache/stats
 ```
 
 #### Clean Up Cache (remove entries older than 30 days)
+
 ```bash
 curl -X POST http://localhost:80/cache/cleanup \
   -H "Content-Type: application/json" \
@@ -198,11 +215,13 @@ Nona-Metadata features a sophisticated SQLite-based caching system that dramatic
 ### 🛠️ Cache Management
 
 #### View Cache Statistics
+
 - **Total Entries**: Number of cached YouTube URLs
 - **Oldest Entry**: Creation date of the first cached item
 - **Newest Entry**: Creation date of the most recent cached item
 
 #### Cache Cleanup Options
+
 - **Age-based Cleanup**: Remove entries older than specified days
 - **Manual Control**: Use the web interface or API endpoints
 - **Automatic Maintenance**: Configurable cleanup policies
@@ -230,14 +249,15 @@ Nona-Metadata features a sophisticated SQLite-based caching system that dramatic
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
+| Variable         | Description                               | Default  |
+| ---------------- | ----------------------------------------- | -------- |
 | `GEMINI_API_KEY` | Google AI API key for metadata extraction | Required |
-| `BASE_DIR` | Directory where music files are organized | `/music` |
+| `BASE_DIR`       | Directory where music files are organized | `/music` |
 
 ### Database Files
 
 The application automatically creates and manages the following SQLite database files:
+
 - `cache.sqlite` - Main cache database
 - `cache.sqlite-shm` - Shared memory file for WAL mode
 - `cache.sqlite-wal` - Write-ahead log for concurrent access
@@ -250,6 +270,7 @@ The application automatically creates and manages the following SQLite database 
 ## 🎯 Features in Detail
 
 ### AI-Powered Metadata Enhancement
+
 - Cleans up video titles (removes "Official Video", "Lyric Video", etc.)
 - Identifies primary artist (removes featured artists from main field)
 - Searches for accurate album information
@@ -257,12 +278,14 @@ The application automatically creates and manages the following SQLite database 
 - Detects language using ISO 639-1 codes
 
 ### Smart Organization
+
 - Sanitizes filenames for cross-platform compatibility
 - Creates nested folder structures automatically
 - Handles track numbering for playlist downloads
 - Manages duplicate file scenarios
 
 ### Web Interface Features
+
 - Real-time processing status
 - File browser with metadata display
 - In-browser metadata editor
@@ -281,6 +304,6 @@ This project is open source and available under the MIT License.
 
 **Built with ❤️ using Bun, TypeScript, and Google AI**
 
-*Transform your YouTube discoveries into a professional music library*
+_Transform your YouTube discoveries into a professional music library_
 
 </div>

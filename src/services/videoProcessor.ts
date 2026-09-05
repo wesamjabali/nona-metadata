@@ -50,7 +50,7 @@ class AlbumArtQueue {
       });
 
       console.log(
-        `Album art queue: Added request. Queue length: ${this.queue.length}`
+        `Album art queue: Added request. Queue length: ${this.queue.length}`,
       );
 
       if (!this.isProcessing) {
@@ -62,14 +62,14 @@ class AlbumArtQueue {
   private async processQueue(): Promise<void> {
     this.isProcessing = true;
     console.log(
-      `Album art queue: Starting to process ${this.queue.length} requests`
+      `Album art queue: Starting to process ${this.queue.length} requests`,
     );
 
     while (this.queue.length > 0) {
       const task = this.queue.shift();
       if (task) {
         console.log(
-          `Album art queue: Processing request. Remaining: ${this.queue.length}`
+          `Album art queue: Processing request. Remaining: ${this.queue.length}`,
         );
         await task();
 
@@ -96,11 +96,11 @@ const albumArtQueue = new AlbumArtQueue();
  */
 async function handleAlbumArt(
   artist: string,
-  album: string | null
+  album: string | null,
 ): Promise<string | null> {
   if (!album || album === "Unknown Album") {
     console.log(
-      `Album art: Skipping (no album specified or unknown album) for "${artist}"`
+      `Album art: Skipping (no album specified or unknown album) for "${artist}"`,
     );
     return null;
   }
@@ -126,7 +126,7 @@ async function handleAlbumArt(
       const existingAlbumArt = await findExistingAlbumArt(albumArtPath);
       if (existingAlbumArt) {
         console.log(
-          `Album art: Already exists (created during queue wait): ${existingAlbumArt}`
+          `Album art: Already exists (created during queue wait): ${existingAlbumArt}`,
         );
         return existingAlbumArt;
       }
@@ -138,7 +138,7 @@ async function handleAlbumArt(
         const savedPath = await saveAlbumArt(
           albumArtResult.data,
           albumArtResult.contentType,
-          albumArtPath
+          albumArtPath,
         );
         if (savedPath) {
           console.log(`Album art: Successfully saved: ${savedPath}`);
@@ -147,12 +147,12 @@ async function handleAlbumArt(
       }
 
       console.log(
-        `Album art: Failed to fetch/save for "${album}" by "${artist}"`
+        `Album art: Failed to fetch/save for "${album}" by "${artist}"`,
       );
     } catch (error) {
       console.warn(
         `Album art: Error fetching for "${album}" by "${artist}":`,
-        error
+        error,
       );
     }
 
@@ -170,7 +170,7 @@ async function handleAlbumArt(
 export async function processVideo(
   videoUrl: string,
   cache: CacheManager,
-  index?: number
+  index?: number,
 ): Promise<MetaData> {
   const cleanUrl = videoUrl
     .replace("&start_radio=1", "")
@@ -185,7 +185,7 @@ export async function processVideo(
     const caseMatchedPath = await getCaseMatchedOrganizedPath(
       cachedMetadata.artist,
       cachedMetadata.album || "Unknown Album",
-      cachedMetadata.title
+      cachedMetadata.title,
     );
 
     const finalFilePath = caseMatchedPath.filePath;
@@ -211,29 +211,29 @@ export async function processVideo(
       if (aiVideoData.album) {
         const existingGenre = await getExistingAlbumGenre(
           aiVideoData.artist,
-          aiVideoData.album
+          aiVideoData.album,
         );
         if (existingGenre) {
           console.log(
-            `Genre consistency (cached): Using existing album genre "${existingGenre}" instead of cached "${aiVideoData.genre}" for "${aiVideoData.title}"`
+            `Genre consistency (cached): Using existing album genre "${existingGenre}" instead of cached "${aiVideoData.genre}" for "${aiVideoData.title}"`,
           );
           aiVideoData.genre = existingGenre;
         } else {
           console.log(
-            `Genre consistency (cached): No existing genre found for album "${aiVideoData.album}", using cached genre "${aiVideoData.genre}"`
+            `Genre consistency (cached): No existing genre found for album "${aiVideoData.album}", using cached genre "${aiVideoData.genre}"`,
           );
         }
       }
 
       const albumArtPath = await handleAlbumArt(
         aiVideoData.artist,
-        aiVideoData.album
+        aiVideoData.album,
       );
       aiVideoData.albumArtPath = albumArtPath;
 
       initialTempFileName = join(
         baseDirectory,
-        `temp_${Date.now()}_${sanitizeFileName(videoInfo.title)}.m4a`
+        `temp_${Date.now()}_${sanitizeFileName(videoInfo.title)}.m4a`,
       );
 
       await ensureDirectory(baseDirectory);
@@ -246,7 +246,7 @@ export async function processVideo(
 
       ffmpegTempFileName = organizedFilePath.replace(
         ".m4a",
-        "_ffmpeg_temp.m4a"
+        "_ffmpeg_temp.m4a",
       );
       const ffmpegArgs = [
         "-y",
@@ -297,15 +297,15 @@ export async function processVideo(
             if (error) {
               return reject(
                 new Error(
-                  `Command 'ffmpeg' failed: ${error.message}\n${stderr}`
-                )
+                  `Command 'ffmpeg' failed: ${error.message}\n${stderr}`,
+                ),
               );
             }
             if (stderr) {
               console.warn(`Command 'ffmpeg' output: ${stderr}`);
             }
             resolve();
-          }
+          },
         );
       });
 
@@ -313,12 +313,12 @@ export async function processVideo(
       await executeCommand("rm", [initialTempFileName]);
 
       console.log(
-        `Video processed successfully (from cache): ${aiVideoData.title} -> ${organizedFilePath}`
+        `Video processed successfully (from cache): ${aiVideoData.title} -> ${organizedFilePath}`,
       );
       return aiVideoData;
     } catch (error) {
       const tempFiles = [initialTempFileName, ffmpegTempFileName].filter(
-        Boolean
+        Boolean,
       );
       await cleanupTempFiles(tempFiles);
       throw error;
@@ -333,18 +333,18 @@ export async function processVideo(
 
     initialTempFileName = join(
       baseDirectory,
-      `temp_${Date.now()}_${sanitizeFileName(videoInfo.title)}.m4a`
+      `temp_${Date.now()}_${sanitizeFileName(videoInfo.title)}.m4a`,
     );
 
     await ensureDirectory(baseDirectory);
 
     const promises = [
       generateContentWithRetry(`
-Youtube URL: ${videoUrl}
-Information attached to the video that might help you find it:
+Source URL: ${videoUrl}
+Information attached to the media that might help you find it:
 Title: ${videoInfo.title || "N/A"}
 Track: ${videoInfo.track || "N/A"}
-Channel: ${videoInfo.uploader || "N/A"}
+Channel/Uploader: ${videoInfo.uploader || "N/A"}
 Artist: ${videoInfo.artist || "N/A"}
 Description (first 200 characters): ${
         (videoInfo.description as string | null)?.slice(0, 200) || "N/A"
@@ -382,7 +382,7 @@ Release Year: ${videoInfo.release_year || "N/A"}
     const caseMatchedPath = await getCaseMatchedOrganizedPath(
       aiVideoData.artist,
       aiVideoData.album || "Unknown Album",
-      aiVideoData.title
+      aiVideoData.title,
     );
 
     // Update metadata to match actual folder structure
@@ -396,23 +396,23 @@ Release Year: ${videoInfo.release_year || "N/A"}
     if (aiVideoData.album) {
       const existingGenre = await getExistingAlbumGenre(
         aiVideoData.artist,
-        aiVideoData.album
+        aiVideoData.album,
       );
       if (existingGenre) {
         console.log(
-          `Genre consistency: Using existing album genre "${existingGenre}" instead of AI-generated "${aiVideoData.genre}" for "${aiVideoData.title}"`
+          `Genre consistency: Using existing album genre "${existingGenre}" instead of AI-generated "${aiVideoData.genre}" for "${aiVideoData.title}"`,
         );
         aiVideoData.genre = existingGenre;
       } else {
         console.log(
-          `Genre consistency: No existing genre found for album "${aiVideoData.album}", using AI-generated genre "${aiVideoData.genre}"`
+          `Genre consistency: No existing genre found for album "${aiVideoData.album}", using AI-generated genre "${aiVideoData.genre}"`,
         );
       }
     }
 
     const albumArtPath = await handleAlbumArt(
       aiVideoData.artist,
-      aiVideoData.album
+      aiVideoData.album,
     );
     aiVideoData.albumArtPath = albumArtPath;
 
@@ -470,14 +470,14 @@ Release Year: ${videoInfo.release_year || "N/A"}
         (error, _stdout, stderr) => {
           if (error) {
             return reject(
-              new Error(`Command 'ffmpeg' failed: ${error.message}\n${stderr}`)
+              new Error(`Command 'ffmpeg' failed: ${error.message}\n${stderr}`),
             );
           }
           if (stderr) {
             console.warn(`Command 'ffmpeg' output: ${stderr}`);
           }
           resolve();
-        }
+        },
       );
     });
 
@@ -486,7 +486,7 @@ Release Year: ${videoInfo.release_year || "N/A"}
     await executeCommand("rm", [initialTempFileName]);
 
     console.log(
-      `Video processed successfully: ${aiVideoData.title} -> ${organizedFilePath}`
+      `Video processed successfully: ${aiVideoData.title} -> ${organizedFilePath}`,
     );
     return aiVideoData;
   } catch (error) {

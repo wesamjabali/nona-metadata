@@ -2,20 +2,19 @@
   <div class="page">
     <Card>
       <template #title>
-        <h2 class="card__title">Process YouTube Content</h2>
+        <h2 class="card__title">Process Music Content</h2>
       </template>
       <template #content>
-        <form
-          class="process-form"
-          @submit.prevent="handleSubmitYoutubeLink"
-        >
+        <form class="process-form" @submit.prevent="handleSubmitYoutubeLink">
           <div class="process-form__group">
-            <label for="youtube-url" class="process-form__label"> YouTube URL </label>
+            <label for="youtube-url" class="process-form__label">
+              Media URL
+            </label>
             <InputText
               id="youtube-url"
               v-model="youtubeUrl"
               type="url"
-              placeholder="https://www.youtube.com/watch?v=..."
+              placeholder="https://soundcloud.com/... or any media URL"
               class="process-form__input"
               required
             />
@@ -27,7 +26,9 @@
               input-id="process-playlist"
               :binary="true"
             />
-            <label for="process-playlist" class="process-form__checkbox-label">Process as playlist</label>
+            <label for="process-playlist" class="process-form__checkbox-label"
+              >Process as playlist</label
+            >
           </div>
 
           <Button
@@ -48,8 +49,12 @@
           class="process-form__result"
         >
           <div class="process-form__result-content">
-            <strong class="process-form__result-header">{{ submitResult.title }}</strong>
-            <p class="process-form__result-message">{{ submitResult.message }}</p>
+            <strong class="process-form__result-header">{{
+              submitResult.title
+            }}</strong>
+            <p class="process-form__result-message">
+              {{ submitResult.message }}
+            </p>
           </div>
         </Message>
       </template>
@@ -88,31 +93,43 @@
             </div>
             <div class="summary__actions">
               <NuxtLink to="/processing-jobs">
-                <Button size="large" severity="secondary" class="summary__actions-button">
-                  View Jobs
-                </Button>
-              </NuxtLink>
-              <NuxtLink to="/cache">
-                <Button size="large" severity="secondary" class="summary__actions-button">
-                  Cache Management
-                </Button>
-              </NuxtLink>
                 <Button
                   size="large"
                   severity="secondary"
                   class="summary__actions-button"
-                  :loading="fetchingAlbumArt"
-                  @click="handleFetchAlbumArt"
                 >
-                  Fetch Album Art
+                  View Jobs
                 </Button>
+              </NuxtLink>
+              <NuxtLink to="/cache">
+                <Button
+                  size="large"
+                  severity="secondary"
+                  class="summary__actions-button"
+                >
+                  Cache Management
+                </Button>
+              </NuxtLink>
+              <Button
+                size="large"
+                severity="secondary"
+                class="summary__actions-button"
+                :loading="fetchingAlbumArt"
+                @click="handleFetchAlbumArt"
+              >
+                Fetch Album Art
+              </Button>
             </div>
           </div>
           <div v-if="fetchAlbumArtResult" class="summary__result">
-          <Message style="margin-top: 1rem" :severity="fetchAlbumArtResult.severity" :closable="true">
-            {{ fetchAlbumArtResult.message }}
-          </Message>
-        </div>
+            <Message
+              style="margin-top: 1rem"
+              :severity="fetchAlbumArtResult.severity"
+              :closable="true"
+            >
+              {{ fetchAlbumArtResult.message }}
+            </Message>
+          </div>
         </template>
       </Card>
       <div class="metadata__panel">
@@ -129,8 +146,12 @@
                     class="files__bulk-actions-button mobile-mb-2"
                     @click="showDeleteConfirm = true"
                   >
-                    <span class="desktop-text">Bulk Delete ({{ selectedFiles.length }})</span>
-                    <span class="mobile-text">Delete ({{ selectedFiles.length }})</span>
+                    <span class="desktop-text"
+                      >Bulk Delete ({{ selectedFiles.length }})</span
+                    >
+                    <span class="mobile-text"
+                      >Delete ({{ selectedFiles.length }})</span
+                    >
                   </Button>
                   <Button
                     severity="secondary"
@@ -186,7 +207,7 @@
                           slotProps.data.path === selectedFile ||
                           (multiSelectEnabled &&
                             selectedFiles.some(
-                              (f) => f.path === slotProps.data.path
+                              (f) => f.path === slotProps.data.path,
                             )),
                       }"
                       :title="slotProps.data.path"
@@ -211,8 +232,8 @@
                       isMultiFileMode
                         ? `Bulk Metadata (${selectedFiles.length} files)`
                         : selectedFile && isImageFile(selectedFile)
-                        ? "Image Viewer"
-                        : "Metadata"
+                          ? "Image Viewer"
+                          : "Metadata"
                     }}
                   </h2>
                   <div
@@ -279,7 +300,7 @@
                     :alt="selectedFile"
                     class="image-viewer__image"
                     @error="imageError = true"
-                  >
+                  />
                   <div v-if="imageError" class="image-viewer__error">
                     <Message severity="error" :closable="false">
                       Failed to load image
@@ -565,7 +586,7 @@ const handleSubmitYoutubeLink = async () => {
     submitResult.value = {
       severity: "error",
       title: "Error",
-      message: error.message || "Failed to process YouTube URL",
+      message: error.message || "Failed to process URL",
     };
   } else {
     submitResult.value = {
@@ -696,7 +717,7 @@ const filteredFiles = computed(() => {
 
   if (searchQuery.value) {
     files = files.filter((file) =>
-      file.path.toLowerCase().includes(searchQuery.value.toLowerCase())
+      file.path.toLowerCase().includes(searchQuery.value.toLowerCase()),
     );
   }
 
@@ -763,7 +784,7 @@ const loadBulkMetadata = async () => {
       if (apiError) {
         console.error(
           `Failed to load metadata for ${file.path}:`,
-          apiError.message
+          apiError.message,
         );
         return null;
       }
@@ -808,7 +829,7 @@ const saveMetadata = async () => {
   } else {
     const { data, error: apiError } = await updateMetadata(
       selectedFile.value,
-      editableMetadata.value
+      editableMetadata.value,
     );
 
     if (apiError) {
@@ -852,7 +873,7 @@ const saveBulkMetadata = async () => {
     try {
       const { error: apiError } = await updateMetadata(
         file.path,
-        changedFields
+        changedFields,
       );
 
       if (apiError) {
@@ -882,7 +903,7 @@ const saveBulkMetadata = async () => {
     saveResult.value = {
       severity: "warn",
       message: `Updated ${successCount} file(s), ${errorCount} failed: ${errors.join(
-        "; "
+        "; ",
       )}`,
     };
     await fetchFiles();
@@ -1014,13 +1035,13 @@ watch(selectedFiles, (newSelection) => {
     &__panel {
       flex-direction: column;
     }
-    
+
     &__sidebar {
       width: 100%;
       position: static;
     }
   }
-  
+
   .files {
     &__controls {
       display: flex;
@@ -1028,14 +1049,14 @@ watch(selectedFiles, (newSelection) => {
       gap: 0.5rem;
       align-items: stretch;
     }
-    
+
     &__multiselect {
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 0.5rem;
     }
-    
+
     &__header {
       flex-direction: column;
       align-items: stretch;
@@ -1046,26 +1067,26 @@ watch(selectedFiles, (newSelection) => {
       }
     }
   }
-  
+
   .desktop-text {
     display: none;
   }
-  
+
   .mobile-text {
     display: inline;
   }
-  
+
   .mobile-mb-2 {
     margin-bottom: 0.5rem;
   }
-  
+
   .summary {
     &__grid {
       grid-template-columns: repeat(1, minmax(0, 1fr));
       gap: 0.75rem;
     }
   }
-  
+
   .p-dialog {
     width: 95vw !important;
     max-width: 95vw !important;
@@ -1080,28 +1101,28 @@ watch(selectedFiles, (newSelection) => {
       align-items: center;
       gap: 0.5rem;
     }
-    
+
     &__multiselect {
       display: flex;
       align-items: center;
       gap: 0.5rem;
     }
-    
+
     &__header {
       flex-direction: row;
       justify-content: space-between;
       align-items: center;
     }
   }
-  
+
   .desktop-text {
     display: inline;
   }
-  
+
   .mobile-text {
     display: none;
   }
-  
+
   .mobile-mb-2 {
     margin-bottom: 0;
   }

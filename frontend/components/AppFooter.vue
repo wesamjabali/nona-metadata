@@ -2,7 +2,7 @@
   <div class="footer layout__footer">
     <div class="footer__content">
       <div class="footer__wrapper">
-        <div>&copy; 2025 YouTube Metadata API. Built with Nuxt 4 & Vue 3.</div>
+        <div>&copy; 2025 Nona Metadata API. Built with Nuxt 4 & Vue 3.</div>
         <div>
           <a
             href="https://github.com/wesamjabali/nona-metadata"

@@ -69,7 +69,7 @@ export async function handlePlaylistInfo(request: Request): Promise<Response> {
     return createErrorResponse(
       "Failed to get playlist information",
       (error as Error).message,
-      500
+      500,
     );
   }
 }
@@ -112,7 +112,7 @@ async function processInBackground(
   jobId: string,
   sanitizedUrl: string,
   cache: CacheManager,
-  jobTracker: JobTracker
+  jobTracker: JobTracker,
 ): Promise<void> {
   try {
     if (isPlaylistUrl(sanitizedUrl)) {
@@ -123,24 +123,24 @@ async function processInBackground(
 
       console.log(
         `[Job ${jobId}] 🔍 DEBUGGING: Playlist data structure:`,
-        JSON.stringify(playlistData, null, 2)
+        JSON.stringify(playlistData, null, 2),
       );
       console.log(
         `[Job ${jobId}] 🔍 DEBUGGING: Available properties:`,
-        Object.keys(playlistData)
+        Object.keys(playlistData),
       );
       console.log(
         `[Job ${jobId}] 🔍 DEBUGGING: Title value:`,
-        playlistData.title
+        playlistData.title,
       );
       console.log(
         `[Job ${jobId}] 🔍 DEBUGGING: Title type:`,
-        typeof playlistData.title
+        typeof playlistData.title,
       );
 
       if (playlistData.title) {
         console.log(
-          `[Job ${jobId}] ✅ Setting playlist title immediately: "${playlistData.title}"`
+          `[Job ${jobId}] ✅ Setting playlist title immediately: "${playlistData.title}"`,
         );
         jobTracker.setPlaylistTitle(jobId, playlistData.title);
       } else {
@@ -153,7 +153,7 @@ async function processInBackground(
           playlistData.uploader;
         if (alternativeTitle) {
           console.log(
-            `[Job ${jobId}] ✅ Found alternative title: "${alternativeTitle}"`
+            `[Job ${jobId}] ✅ Found alternative title: "${alternativeTitle}"`,
           );
           jobTracker.setPlaylistTitle(jobId, alternativeTitle);
         }
@@ -188,21 +188,24 @@ async function processInBackground(
             Math.floor(batchStart / batchSize) + 1
           }/${Math.ceil(entries.length / batchSize)} (videos ${
             batchStart + 1
-          }-${batchEnd})`
+          }-${batchEnd})`,
         );
 
         const batchPromises = batch.map(
           async (entry: any, batchIndex: number) => {
             const globalIndex = batchStart + batchIndex;
-            const videoUrl = entry.url.startsWith("http")
-              ? entry.url
-              : `https://www.youtube.com/watch?v=${entry.id}`;
+            const videoUrl =
+              typeof entry.url === "string" && entry.url.startsWith("http")
+                ? entry.url
+                : typeof entry.webpage_url === "string"
+                  ? entry.webpage_url
+                  : `https://www.youtube.com/watch?v=${entry.id}`;
 
             try {
               console.log(
                 `[Job ${jobId}] Processing video ${globalIndex + 1}/${
                   entries.length
-                }: ${entry.title}`
+                }: ${entry.title}`,
               );
               const result = await processVideo(videoUrl, cache, globalIndex);
 
@@ -220,7 +223,7 @@ async function processInBackground(
               console.error(`[Job ${jobId}] ${errorMsg}`);
               return { success: false, error: errorMsg, index: globalIndex };
             }
-          }
+          },
         );
 
         const batchResults = await Promise.all(batchPromises);
@@ -244,12 +247,12 @@ async function processInBackground(
             Math.floor(batchStart / batchSize) + 1
           } complete. ${results.length} successful so far, ${
             errors.length
-          } failed so far.`
+          } failed so far.`,
         );
       }
 
       console.log(
-        `[Job ${jobId}] Playlist processing complete. ${results.length} successful, ${errors.length} failed.`
+        `[Job ${jobId}] Playlist processing complete. ${results.length} successful, ${errors.length} failed.`,
       );
 
       if (results.length > 0) {
@@ -286,7 +289,7 @@ async function processInBackground(
 export async function handleProcessVideo(
   request: Request,
   cache: CacheManager,
-  jobTracker: JobTracker
+  jobTracker: JobTracker,
 ): Promise<Response> {
   try {
     const { prompt: url } = (await request.json()) as ProcessVideoRequest;
@@ -294,7 +297,7 @@ export async function handleProcessVideo(
       return createErrorResponse(
         "A 'prompt' with the URL is required.",
         undefined,
-        400
+        400,
       );
     }
 
@@ -312,7 +315,7 @@ export async function handleProcessVideo(
         jobTracker.failJob(jobId, [
           `Background processing error: ${error.message}`,
         ]);
-      }
+      },
     );
 
     return createJsonResponse({
