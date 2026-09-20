@@ -28,9 +28,8 @@
             class="p-datatable-sm"
             data-key="id"
           >
-
-          <Column expander style="width: 5rem" />
-          <Column field="type" header="Type" sortable>
+            <Column expander style="width: 5rem" />
+            <Column field="type" header="Type" sortable>
               <template #body="slotProps">
                 <div class="job-details__type-container">
                   <span>
@@ -38,10 +37,10 @@
                       slotProps.data.type === "playlist"
                         ? `Playlist (${slotProps.data.results?.length || 0})`
                         : slotProps.data.type === "album-art"
-                        ? "Album Art"
-                        : slotProps.data.type === "lyrics"
-                        ? "Lyrics"
-                        : "Video"
+                          ? "Album Art"
+                          : slotProps.data.type === "lyrics"
+                            ? "Lyrics"
+                            : "Video"
                     }}
                   </span>
                 </div>
@@ -50,7 +49,10 @@
 
             <Column field="title" header="Title" sortable>
               <template #body="slotProps">
-                <div v-if="getJobTitle(slotProps.data)" class="job-details__text">
+                <div
+                  v-if="getJobTitle(slotProps.data)"
+                  class="job-details__text"
+                >
                   <span :title="getJobTitle(slotProps.data)">
                     {{
                       getJobTitle(slotProps.data).length > 60
@@ -90,11 +92,18 @@
             <Column field="progress" header="Progress">
               <template #body="slotProps">
                 <div
-                  v-if="slotProps.data.progress !== undefined || slotProps.data.status === 'completed'"
+                  v-if="
+                    slotProps.data.progress !== undefined ||
+                    slotProps.data.status === 'completed'
+                  "
                   class="progress__container"
                 >
                   <ProgressBar
-                    :value="slotProps.data.status === 'completed' ? 100 : slotProps.data.progress"
+                    :value="
+                      slotProps.data.status === 'completed'
+                        ? 100
+                        : slotProps.data.progress
+                    "
                     :show-value="true"
                     class="progress__bar"
                   />
@@ -132,7 +141,10 @@
                 >
                   <Column field="title" header="Title" sortable>
                     <template #body="videoSlot">
-                      <div class="video-details__title" :title="videoSlot.data.title">
+                      <div
+                        class="video-details__title"
+                        :title="videoSlot.data.title"
+                      >
                         {{
                           videoSlot.data.title.length > 80
                             ? videoSlot.data.title.substring(0, 80) + "..."
@@ -184,14 +196,20 @@
                         v-if="videoSlot.data.albumArtPath"
                         class="album-art__button-container"
                       >
-                        <Button 
-                    class="p-button-text p-button-sm album-art__button"
-                        
-                        style="width: 100%" @click="viewAlbumArt(videoSlot.data.artist, videoSlot.data.album)"><i class="pi pi-image" /></Button>
-
+                        <Button
+                          class="p-button-text p-button-sm album-art__button"
+                          style="width: 100%"
+                          @click="
+                            viewAlbumArt(
+                              videoSlot.data.artist,
+                              videoSlot.data.album,
+                            )
+                          "
+                          ><i class="pi pi-image"
+                        /></Button>
                       </div>
                       <div v-else class="album-art__missing">
-                        <i class="pi pi-times album-art__missing-icon"/>
+                        <i class="pi pi-times album-art__missing-icon" />
                       </div>
                     </template>
                   </Column>
@@ -206,10 +224,11 @@
                           class="p-button-text p-button-sm album-art__button"
                           style="width: 100%"
                           @click="viewLyrics(videoSlot.data)"
-                        ><i class="pi pi-align-left" /></Button>
+                          ><i class="pi pi-align-left"
+                        /></Button>
                       </div>
                       <div v-else class="album-art__missing">
-                        <i class="pi pi-times album-art__missing-icon"/>
+                        <i class="pi pi-times album-art__missing-icon" />
                       </div>
                     </template>
                   </Column>
@@ -222,90 +241,116 @@
                 "
                 class="expansion__container"
               >
-                <h4 class="expansion__title">
-                  Video Details
-                </h4>
+                <h4 class="expansion__title">Video Details</h4>
                 <div
                   v-if="slotProps.data.results.length > 0"
                   class="video-details__grid"
                 >
-                  <div v-for="field in videoFields" :key="field.key" class="video-details__field">
+                  <div
+                    v-for="field in videoFields"
+                    :key="field.key"
+                    class="video-details__field"
+                  >
                     <div class="video-details__label">
-                      <strong class="video-details__label-text">{{ field.label }}:</strong>
-                      <span class="video-details__value">{{ getFieldValue(slotProps.data.results[0], field) }}</span>
+                      <strong class="video-details__label-text"
+                        >{{ field.label }}:</strong
+                      >
+                      <span class="video-details__value">{{
+                        getFieldValue(slotProps.data.results[0], field)
+                      }}</span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div v-else-if="slotProps.data.type === 'album-art'" class="expansion__container">
-                <h4 class="expansion__title">
-                  Album Art Processing Results
-                </h4>
+              <div
+                v-else-if="slotProps.data.type === 'album-art'"
+                class="expansion__container"
+              >
+                <h4 class="expansion__title">Album Art Processing Results</h4>
                 <div
                   v-if="slotProps.data.albumArtResults"
                   class="album-art__results-grid"
                 >
                   <div class="album-art__stat">
-                    <div class="album-art__stat-number album-art__stat-number--blue">
+                    <div
+                      class="album-art__stat-number album-art__stat-number--blue"
+                    >
                       {{ slotProps.data.albumArtResults.processed }}
                     </div>
                     <div class="album-art__stat-label">Processed</div>
                   </div>
                   <div class="album-art__stat">
-                    <div class="album-art__stat-number album-art__stat-number--green">
+                    <div
+                      class="album-art__stat-number album-art__stat-number--green"
+                    >
                       {{ slotProps.data.albumArtResults.fetched }}
                     </div>
                     <div class="album-art__stat-label">Fetched</div>
                   </div>
                   <div class="album-art__stat">
-                    <div class="album-art__stat-number album-art__stat-number--yellow">
+                    <div
+                      class="album-art__stat-number album-art__stat-number--yellow"
+                    >
                       {{ slotProps.data.albumArtResults.existed }}
                     </div>
                     <div class="album-art__stat-label">Already Existed</div>
                   </div>
                   <div class="album-art__stat">
-                    <div class="album-art__stat-number album-art__stat-number--red">
+                    <div
+                      class="album-art__stat-number album-art__stat-number--red"
+                    >
                       {{ slotProps.data.albumArtResults.errors }}
                     </div>
                     <div class="album-art__stat-label">Errors</div>
                   </div>
                 </div>
               </div>
-              <div v-else-if="slotProps.data.type === 'lyrics'" class="expansion__container">
-                <h4 class="expansion__title">
-                  Lyrics Processing Results
-                </h4>
+              <div
+                v-else-if="slotProps.data.type === 'lyrics'"
+                class="expansion__container"
+              >
+                <h4 class="expansion__title">Lyrics Processing Results</h4>
                 <div
                   v-if="slotProps.data.lyricsResults"
                   class="album-art__results-grid"
                 >
                   <div class="album-art__stat">
-                    <div class="album-art__stat-number album-art__stat-number--blue">
+                    <div
+                      class="album-art__stat-number album-art__stat-number--blue"
+                    >
                       {{ slotProps.data.lyricsResults.processed }}
                     </div>
                     <div class="album-art__stat-label">Processed</div>
                   </div>
                   <div class="album-art__stat">
-                    <div class="album-art__stat-number album-art__stat-number--green">
+                    <div
+                      class="album-art__stat-number album-art__stat-number--green"
+                    >
                       {{ slotProps.data.lyricsResults.fetched }}
                     </div>
                     <div class="album-art__stat-label">Fetched</div>
                   </div>
                   <div class="album-art__stat">
-                    <div class="album-art__stat-number album-art__stat-number--yellow">
+                    <div
+                      class="album-art__stat-number album-art__stat-number--yellow"
+                    >
                       {{ slotProps.data.lyricsResults.existed }}
                     </div>
                     <div class="album-art__stat-label">Already Existed</div>
                   </div>
                   <div class="album-art__stat">
-                    <div class="album-art__stat-number album-art__stat-number--blue">
+                    <div
+                      class="album-art__stat-number album-art__stat-number--blue"
+                    >
                       {{ slotProps.data.lyricsResults.notFound }}
                     </div>
                     <div class="album-art__stat-label">Not Found</div>
                   </div>
                   <div class="album-art__stat">
-                    <div class="album-art__stat-number album-art__stat-number--red">
+                    <div
+                      class="album-art__stat-number album-art__stat-number--red"
+                    >
                       {{ slotProps.data.lyricsResults.errors }}
                     </div>
                     <div class="album-art__stat-label">Errors</div>
@@ -325,7 +370,11 @@
 </template>
 
 <script setup lang="ts">
-import type { MetaData, ProcessingJob, ProcessingJobWithProgress } from "~/types/api";
+import type {
+  MetaData,
+  ProcessingJob,
+  ProcessingJobWithProgress,
+} from "~/types/api";
 
 const { getJobs } = useApi();
 const loading = ref(true);
@@ -334,23 +383,45 @@ const jobs = ref<ProcessingJobWithProgress[]>([]);
 const expandedRows = ref<Record<string, boolean>>({});
 
 const videoFields = [
-  { key: 'title', label: 'Title', value: (item: MetaData) => item.title },
-  { key: 'artist', label: 'Artist', value: (item: MetaData) => item.artist || '-' },
-  { key: 'album', label: 'Album', value: (item: MetaData) => item.album || '-' },
-  { key: 'genre', label: 'Genre', value: (item: MetaData) => item.genre || '-' },
-  { key: 'duration', label: 'Duration', value: (item: MetaData) => item.duration ? formatDuration(item.duration) : '-' },
-  { key: 'bpm', label: 'BPM', value: (item: MetaData) => item.bpm || '-' },
-  { key: 'mood', label: 'Mood', value: (item: MetaData) => item.mood || '-' },
-  { key: 'language', label: 'Language', value: (item: MetaData) => item.language || '-' },
+  { key: "title", label: "Title", value: (item: MetaData) => item.title },
+  {
+    key: "artist",
+    label: "Artist",
+    value: (item: MetaData) => item.artist || "-",
+  },
+  {
+    key: "album",
+    label: "Album",
+    value: (item: MetaData) => item.album || "-",
+  },
+  {
+    key: "genre",
+    label: "Genre",
+    value: (item: MetaData) => item.genre || "-",
+  },
+  {
+    key: "duration",
+    label: "Duration",
+    value: (item: MetaData) =>
+      item.duration ? formatDuration(item.duration) : "-",
+  },
+  { key: "bpm", label: "BPM", value: (item: MetaData) => item.bpm || "-" },
+  { key: "mood", label: "Mood", value: (item: MetaData) => item.mood || "-" },
+  {
+    key: "language",
+    label: "Language",
+    value: (item: MetaData) => item.language || "-",
+  },
 ];
 
-const getFieldValue = (item: MetaData, field: typeof videoFields[0]) => field.value(item);
+const getFieldValue = (item: MetaData, field: (typeof videoFields)[0]) =>
+  field.value(item);
 
-const viewAlbumArt = (artist: string, album:string) => {
+const viewAlbumArt = (artist: string, album: string) => {
   const config = useRuntimeConfig();
   const baseURL = config.public.apiBase;
   const albumArtUrl = `${baseURL}/album-art/${artist}/${album}`;
-  window.open(albumArtUrl, '_blank', 'noopener,noreferrer');
+  window.open(albumArtUrl, "_blank", "noopener,noreferrer");
 };
 
 const viewLyrics = (item: MetaData) => {
@@ -361,9 +432,13 @@ const viewLyrics = (item: MetaData) => {
     title: item.title,
   });
   if (item.album) {
-    params.set('album', item.album);
+    params.set("album", item.album);
   }
-  window.open(`${baseURL}/lyrics?${params.toString()}`, '_blank', 'noopener,noreferrer');
+  window.open(
+    `${baseURL}/lyrics?${params.toString()}`,
+    "_blank",
+    "noopener,noreferrer",
+  );
 };
 
 const fetchJobs = async () => {
@@ -375,7 +450,6 @@ const fetchJobs = async () => {
   if (apiError) {
     error.value = apiError.message || "Failed to load jobs";
   } else if (data && data.jobs) {
-
     jobs.value = data.jobs.map(
       (job: ProcessingJob): ProcessingJobWithProgress => {
         const transformedJob: ProcessingJobWithProgress = {
@@ -393,18 +467,16 @@ const fetchJobs = async () => {
           originalProgress: job.progress,
         };
 
-
         if (job.progress && job.progress.total > 0) {
           transformedJob.progress = Math.round(
-            (job.progress.completed / job.progress.total) * 100
+            (job.progress.completed / job.progress.total) * 100,
           );
         }
 
         return transformedJob;
-      }
+      },
     );
   } else {
-
     jobs.value = [];
   }
 
@@ -447,11 +519,9 @@ const getStatusSeverity = (status: string): string => {
 };
 
 const getJobTitle = (job: ProcessingJobWithProgress): string => {
-
   if (job.type === "playlist" && job.playlistTitle) {
     return job.playlistTitle;
   }
-
 
   if (
     job.type === "single" &&
@@ -462,16 +532,13 @@ const getJobTitle = (job: ProcessingJobWithProgress): string => {
     return job.results[0].title;
   }
 
-
   if (job.type === "album-art") {
     return "Album Art Processing";
   }
 
-
   if (job.type === "lyrics") {
     return "Lyrics Processing";
   }
-
 
   return "";
 };
@@ -508,19 +575,19 @@ onMounted(() => {
       align-items: stretch;
       gap: 1rem;
     }
-    
+
     &__title {
       font-size: 1.5rem;
       margin-bottom: 0;
     }
   }
-  
+
   /* Make DataTable more mobile-friendly */
   .p-datatable {
     .p-datatable-wrapper {
       overflow-x: auto;
     }
-    
+
     .p-datatable-thead > tr > th,
     .p-datatable-tbody > tr > td {
       padding: 0.5rem 0.25rem;
@@ -533,20 +600,20 @@ onMounted(() => {
       font-size: 0.75rem;
     }
   }
-  
+
   /* Adjust grid layouts for mobile */
   .video-details {
     &__grid {
       grid-template-columns: repeat(1, minmax(0, 1fr));
     }
   }
-  
+
   .album-art {
     &__results-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
-  
+
   /* Progress bar adjustments */
   .progress {
     &__bar {
@@ -554,7 +621,7 @@ onMounted(() => {
       min-width: 80px;
     }
   }
-  
+
   /* Text truncation for mobile */
   .text {
     &--sm {

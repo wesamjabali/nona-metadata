@@ -66,20 +66,20 @@ Nona-Metadata is a powerful, AI-driven music curation system that transforms con
 
 ## 📋 API Endpoints
 
-| Method  | Endpoint              | Description                                   |
-| ------- | --------------------- | --------------------------------------------- |
-| `POST`  | `/`                   | Download and process a media link or playlist |
-| `GET`   | `/files`              | List all organized music files                |
-| `GET`   | `/metadata?file=path` | Get metadata for a specific file              |
-| `PATCH` | `/metadata`           | Update metadata for a file                    |
-| `POST`  | `/fetch-album-art`    | Backfill album art for all existing files     |
-| `POST`  | `/fetch-lyrics`       | Backfill lyrics for all existing files        |
-| `GET`   | `/lyrics`             | Get the `.lrc` sidecar for a track            |
-| `GET`   | `/album-art/:artist/:album` | Serve an album's cover image            |
-| `GET`   | `/jobs`               | List all processing jobs                      |
-| `GET`   | `/jobs/:id`           | Get a single job's status and results         |
-| `GET`   | `/cache/stats`        | Get cache statistics and information          |
-| `POST`  | `/cache/cleanup`      | Clean up old cache entries                    |
+| Method  | Endpoint                    | Description                                   |
+| ------- | --------------------------- | --------------------------------------------- |
+| `POST`  | `/`                         | Download and process a media link or playlist |
+| `GET`   | `/files`                    | List all organized music files                |
+| `GET`   | `/metadata?file=path`       | Get metadata for a specific file              |
+| `PATCH` | `/metadata`                 | Update metadata for a file                    |
+| `POST`  | `/fetch-album-art`          | Backfill album art for all existing files     |
+| `POST`  | `/fetch-lyrics`             | Backfill lyrics for all existing files        |
+| `GET`   | `/lyrics`                   | Get the `.lrc` sidecar for a track            |
+| `GET`   | `/album-art/:artist/:album` | Serve an album's cover image                  |
+| `GET`   | `/jobs`                     | List all processing jobs                      |
+| `GET`   | `/jobs/:id`                 | Get a single job's status and results         |
+| `GET`   | `/cache/stats`              | Get cache statistics and information          |
+| `POST`  | `/cache/cleanup`            | Clean up old cache entries                    |
 
 ## 🚀 Quick Start
 

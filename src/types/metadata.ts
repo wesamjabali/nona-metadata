@@ -17,8 +17,8 @@ export type {
   MetadataRequest,
   MetadataResponse,
   PaginationInfo,
+  ProcessingJob,
   ProcessVideoRequest,
   ProcessVideoResponse,
-  ProcessingJob,
   SidecarResults,
 } from "../../shared/types.js";

@@ -220,7 +220,7 @@ export class CacheManager {
       const jobResult = jobCleanupQuery.run();
 
       console.log(
-        `🧹 Cleaned up ${result.changes} old cache entries and ${jobResult.changes} old jobs`
+        `🧹 Cleaned up ${result.changes} old cache entries and ${jobResult.changes} old jobs`,
       );
     } catch (error) {
       console.warn(`Failed to cleanup cache:`, error);
@@ -261,7 +261,7 @@ export class CacheManager {
         errorsJson,
         job.playlistTitle || null,
         albumArtResultsJson,
-        lyricsResultsJson
+        lyricsResultsJson,
       );
 
       console.log(`💾 Saved job ${job.id} to cache`);
@@ -283,7 +283,7 @@ export class CacheManager {
           .prepare(
             `
           UPDATE jobs_cache SET last_accessed = CURRENT_TIMESTAMP WHERE id = ?
-        `
+        `,
           )
           .run(jobId);
 
@@ -339,7 +339,7 @@ export class CacheManager {
         job.playlistTitle || null,
         albumArtResultsJson,
         lyricsResultsJson,
-        job.id
+        job.id,
       );
 
       console.log(`🔄 Updated job ${job.id} in cache`);

@@ -20,7 +20,10 @@ import { CacheManager } from "./services/cache.js";
 import { JobTracker } from "./services/jobTracker.js";
 
 export class Router {
-  constructor(private cache: CacheManager, private jobTracker: JobTracker) {}
+  constructor(
+    private cache: CacheManager,
+    private jobTracker: JobTracker,
+  ) {}
 
   async handle(request: Request): Promise<Response> {
     const url = new URL(request.url);
@@ -141,13 +144,13 @@ export class Router {
       return createErrorResponse(
         "Supported endpoints: GET /, GET /processing-jobs, GET /files, DELETE /files, GET /cache/stats, GET /cache/entries, GET /cache/jobs, DELETE /cache/entries, DELETE /cache/jobs, POST /cache/cleanup, GET /metadata, PATCH /metadata, GET /playlist-info, GET /jobs, GET /jobs/:id, POST /, POST /fetch-album-art, GET /:artist/:album (album art), POST /fetch-lyrics, GET /lyrics?file=:path",
         undefined,
-        405
+        405,
       );
     } catch (error) {
       console.error("Router error:", error);
       return createErrorResponse(
         "An internal server error occurred.",
-        (error as Error).message
+        (error as Error).message,
       );
     }
   }

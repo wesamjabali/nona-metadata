@@ -190,7 +190,10 @@ export async function findExistingLyrics(
 ): Promise<string | null> {
   const lyricsPath = getLyricsFilePath(audioFilePath);
 
-  for (const candidate of [lyricsPath, `${removeFileExtension(audioFilePath)}.LRC`]) {
+  for (const candidate of [
+    lyricsPath,
+    `${removeFileExtension(audioFilePath)}.LRC`,
+  ]) {
     try {
       const stats = await fs.stat(candidate);
       // Treat empty files as missing so they get re-fetched.

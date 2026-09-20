@@ -130,7 +130,9 @@ async function lrclibGet<T>(path: string): Promise<T | null> {
  * @param params The key/value pairs to serialize.
  * @returns An encoded query string (without the leading `?`).
  */
-function buildQuery(params: Record<string, string | number | undefined>): string {
+function buildQuery(
+  params: Record<string, string | number | undefined>,
+): string {
   const search = new URLSearchParams();
 
   for (const [key, value] of Object.entries(params)) {
@@ -148,7 +150,9 @@ function buildQuery(params: Record<string, string | number | undefined>): string
  * @param duration The track duration in seconds.
  * @returns A whole number of seconds, or undefined when out of range.
  */
-function usableDuration(duration: number | null | undefined): number | undefined {
+function usableDuration(
+  duration: number | null | undefined,
+): number | undefined {
   if (!duration || Number.isNaN(duration)) {
     return undefined;
   }
@@ -344,7 +348,10 @@ export async function fetchLyrics(
  * @param meta The track metadata used for the header tags.
  * @returns The `.lrc` file contents.
  */
-export function buildLrcContent(record: LyricsRecord, meta: LyricsMeta): string {
+export function buildLrcContent(
+  record: LyricsRecord,
+  meta: LyricsMeta,
+): string {
   const headers = [
     `[ti:${record.trackName || meta.title}]`,
     `[ar:${record.artistName || meta.artist}]`,
@@ -368,7 +375,7 @@ export function buildLrcContent(record: LyricsRecord, meta: LyricsMeta): string 
 
   const body = record.instrumental
     ? "[00:00.00] \u266a Instrumental \u266a"
-    : (record.syncedLyrics?.trim() || record.plainLyrics?.trim() || "");
+    : record.syncedLyrics?.trim() || record.plainLyrics?.trim() || "";
 
   if (!body) {
     return "";

@@ -20,7 +20,7 @@ class MusicBrainzRateLimiter {
     if (timeSinceLastRequest < this.requestInterval) {
       const waitTime = this.requestInterval - timeSinceLastRequest;
       console.log(
-        `Rate limiting: waiting ${waitTime}ms before next MusicBrainz request...`
+        `Rate limiting: waiting ${waitTime}ms before next MusicBrainz request...`,
       );
       await new Promise((resolve) => setTimeout(resolve, waitTime));
     }
@@ -40,18 +40,18 @@ const musicBrainzRateLimiter = new MusicBrainzRateLimiter();
  */
 async function searchMusicBrainzByArtistAndAlbum(
   artist: string,
-  album: string
+  album: string,
 ): Promise<string | null> {
   await musicBrainzRateLimiter.waitForRateLimit();
 
   const musicbrainzApiUrl = "https://musicbrainz.org/ws/2/release/";
 
   let queryUrl = `${musicbrainzApiUrl}?query=artist:"${encodeURIComponent(
-    artist
+    artist,
   )}" AND release:"${encodeURIComponent(album)}"&fmt=json`;
 
   console.log(
-    `Searching MusicBrainz for: "${album}" by "${artist}" (exact match)...`
+    `Searching MusicBrainz for: "${album}" by "${artist}" (exact match)...`,
   );
 
   try {
@@ -63,7 +63,7 @@ async function searchMusicBrainzByArtistAndAlbum(
 
     if (!response.ok) {
       console.error(
-        `MusicBrainz API error: ${response.status} ${response.statusText}`
+        `MusicBrainz API error: ${response.status} ${response.statusText}`,
       );
       return null;
     }
@@ -82,7 +82,7 @@ async function searchMusicBrainzByArtistAndAlbum(
     await musicBrainzRateLimiter.waitForRateLimit();
 
     queryUrl = `${musicbrainzApiUrl}?query=artist:${encodeURIComponent(
-      artist
+      artist,
     )} AND release:${encodeURIComponent(album)}&fmt=json`;
 
     response = await fetch(queryUrl, {
@@ -93,7 +93,7 @@ async function searchMusicBrainzByArtistAndAlbum(
 
     if (!response.ok) {
       console.error(
-        `MusicBrainz API error: ${response.status} ${response.statusText}`
+        `MusicBrainz API error: ${response.status} ${response.statusText}`,
       );
       return null;
     }
@@ -123,14 +123,14 @@ async function searchMusicBrainzByArtistAndAlbum(
  */
 async function searchMusicBrainzByArtistOnly(
   artist: string,
-  album: string
+  album: string,
 ): Promise<string | null> {
   await musicBrainzRateLimiter.waitForRateLimit();
 
   const musicbrainzApiUrl = "https://musicbrainz.org/ws/2/release/";
 
   const queryUrl = `${musicbrainzApiUrl}?query=artist:"${encodeURIComponent(
-    artist
+    artist,
   )}"&fmt=json&limit=100`;
 
   console.log(`Fallback: Searching MusicBrainz by artist only: "${artist}"...`);
@@ -144,7 +144,7 @@ async function searchMusicBrainzByArtistOnly(
 
     if (!response.ok) {
       console.error(
-        `MusicBrainz API error: ${response.status} ${response.statusText}`
+        `MusicBrainz API error: ${response.status} ${response.statusText}`,
       );
       return null;
     }
@@ -173,7 +173,7 @@ async function searchMusicBrainzByArtistOnly(
         targetAlbum.includes(releaseTitle)
       ) {
         console.log(
-          `Partial match found: "${release.title}" matches "${album}"`
+          `Partial match found: "${release.title}" matches "${album}"`,
         );
         return true;
       }
@@ -189,13 +189,13 @@ async function searchMusicBrainzByArtistOnly(
       const matchingWords = targetWords.filter((word) =>
         releaseWords.some(
           (releaseWord) =>
-            releaseWord.includes(word) || word.includes(releaseWord)
-        )
+            releaseWord.includes(word) || word.includes(releaseWord),
+        ),
       );
 
       if (matchingWords.length >= Math.min(targetWords.length, 2)) {
         console.log(
-          `Fuzzy match found: "${release.title}" matches "${album}" (${matchingWords.length}/${targetWords.length} words)`
+          `Fuzzy match found: "${release.title}" matches "${album}" (${matchingWords.length}/${targetWords.length} words)`,
         );
         return true;
       }
@@ -206,7 +206,7 @@ async function searchMusicBrainzByArtistOnly(
     if (matchingRelease) {
       const mbid = matchingRelease["release-group"].id;
       console.log(
-        `Found MBID via artist fallback: ${mbid} for "${matchingRelease.title}"`
+        `Found MBID via artist fallback: ${mbid} for "${matchingRelease.title}"`,
       );
       return mbid;
     } else {
@@ -216,7 +216,7 @@ async function searchMusicBrainzByArtistOnly(
   } catch (error) {
     console.error(
       "An error occurred while searching MusicBrainz by artist:",
-      error
+      error,
     );
     return null;
   }
@@ -235,10 +235,10 @@ async function searchMusicBrainzByArtistOnly(
  */
 async function searchMusicBrainz(
   artist: string,
-  album: string
+  album: string,
 ): Promise<string | null> {
   console.log(
-    `Album art search: Starting multi-strategy search for "${album}" by "${artist}"`
+    `Album art search: Starting multi-strategy search for "${album}" by "${artist}"`,
   );
 
   let mbid = await searchMusicBrainzByArtistAndAlbum(artist, album);
@@ -249,7 +249,7 @@ async function searchMusicBrainz(
   }
 
   console.log(
-    "Album art search: Artist+album failed, trying artist-only fallback..."
+    "Album art search: Artist+album failed, trying artist-only fallback...",
   );
   mbid = await searchMusicBrainzByArtistOnly(artist, album);
 
@@ -259,7 +259,7 @@ async function searchMusicBrainz(
   }
 
   console.log(
-    "Album art search: Artist-only failed, trying fuzzy artist search..."
+    "Album art search: Artist-only failed, trying fuzzy artist search...",
   );
   mbid = await searchMusicBrainzByFuzzyArtist(artist, album);
 
@@ -269,7 +269,7 @@ async function searchMusicBrainz(
   }
 
   console.log(
-    `Album art search: All strategies failed for "${album}" by "${artist}"`
+    `Album art search: All strategies failed for "${album}" by "${artist}"`,
   );
   return null;
 }
@@ -282,18 +282,18 @@ async function searchMusicBrainz(
  */
 async function searchMusicBrainzByFuzzyArtist(
   artist: string,
-  album: string
+  album: string,
 ): Promise<string | null> {
   await musicBrainzRateLimiter.waitForRateLimit();
 
   const musicbrainzApiUrl = "https://musicbrainz.org/ws/2/release/";
 
   const queryUrl = `${musicbrainzApiUrl}?query=${encodeURIComponent(
-    `${artist} ${album}`
+    `${artist} ${album}`,
   )}&fmt=json&limit=25`;
 
   console.log(
-    `Fuzzy search: Searching MusicBrainz with combined terms: "${artist} ${album}"...`
+    `Fuzzy search: Searching MusicBrainz with combined terms: "${artist} ${album}"...`,
   );
 
   try {
@@ -305,7 +305,7 @@ async function searchMusicBrainzByFuzzyArtist(
 
     if (!response.ok) {
       console.error(
-        `MusicBrainz API error: ${response.status} ${response.statusText}`
+        `MusicBrainz API error: ${response.status} ${response.statusText}`,
       );
       return null;
     }
@@ -331,16 +331,16 @@ async function searchMusicBrainzByFuzzyArtist(
       const releaseArtistWords = releaseArtist.split(" ");
       const artistMatches = artistWords.filter((word) =>
         releaseArtistWords.some(
-          (rWord) => rWord.includes(word) || word.includes(rWord)
-        )
+          (rWord) => rWord.includes(word) || word.includes(rWord),
+        ),
       ).length;
 
       const albumWords = targetAlbum.split(" ").filter((w) => w.length > 2);
       const releaseTitleWords = releaseTitle.split(" ");
       const albumMatches = albumWords.filter((word) =>
         releaseTitleWords.some(
-          (rWord) => rWord.includes(word) || word.includes(rWord)
-        )
+          (rWord) => rWord.includes(word) || word.includes(rWord),
+        ),
       ).length;
 
       const hasArtistMatch = artistMatches >= Math.min(artistWords.length, 1);
@@ -348,7 +348,7 @@ async function searchMusicBrainzByFuzzyArtist(
 
       if (hasArtistMatch && hasAlbumMatch) {
         console.log(
-          `Fuzzy match: "${release.title}" by "${artistCredit}" matches "${album}" by "${artist}"`
+          `Fuzzy match: "${release.title}" by "${artistCredit}" matches "${album}" by "${artist}"`,
         );
         return true;
       }
@@ -359,7 +359,7 @@ async function searchMusicBrainzByFuzzyArtist(
     if (matchingRelease) {
       const mbid = matchingRelease["release-group"].id;
       console.log(
-        `Found MBID via fuzzy search: ${mbid} for "${matchingRelease.title}"`
+        `Found MBID via fuzzy search: ${mbid} for "${matchingRelease.title}"`,
       );
       return mbid;
     } else {
@@ -378,7 +378,7 @@ async function searchMusicBrainzByFuzzyArtist(
  * @returns An object with image data and content type, or null if fetching failed.
  */
 async function getAlbumCover(
-  mbid: string
+  mbid: string,
 ): Promise<{ data: ArrayBuffer; contentType: string } | null> {
   const coverartArchiveUrl = `https://coverartarchive.org/release-group/${mbid}/front`;
 
@@ -396,7 +396,7 @@ async function getAlbumCover(
         console.log("No cover art found for this MBID.");
       } else {
         console.error(
-          `Cover Art Archive API error: ${response.status} ${response.statusText}`
+          `Cover Art Archive API error: ${response.status} ${response.statusText}`,
         );
       }
       return null;
@@ -444,7 +444,7 @@ function getExtensionFromContentType(contentType: string): string {
  */
 async function searchDiscogsForAlbumArt(
   artist: string,
-  album: string
+  album: string,
 ): Promise<{ data: ArrayBuffer; contentType: string } | null> {
   if (!discogsApiKey) {
     console.log("Discogs API key not configured, skipping Discogs search");
@@ -455,7 +455,7 @@ async function searchDiscogsForAlbumArt(
     console.log(`Searching Discogs for "${album}" by "${artist}"...`);
 
     const searchUrl = `https://api.discogs.com/database/search?artist=${encodeURIComponent(
-      artist
+      artist,
     )}&release_title=${encodeURIComponent(album)}&type=release&per_page=5`;
 
     const response = await fetch(searchUrl, {
@@ -467,7 +467,7 @@ async function searchDiscogsForAlbumArt(
 
     if (!response.ok) {
       console.error(
-        `Discogs search failed: ${response.status} ${response.statusText}`
+        `Discogs search failed: ${response.status} ${response.statusText}`,
       );
       return null;
     }
@@ -528,7 +528,7 @@ async function searchDiscogsForAlbumArt(
           const data = await thumbResponse.arrayBuffer();
 
           console.log(
-            `Successfully retrieved album art thumbnail from Discogs`
+            `Successfully retrieved album art thumbnail from Discogs`,
           );
           return { data, contentType };
         }
@@ -560,14 +560,14 @@ export interface FetchAlbumArtOptions {
  * @returns An object with image data and content type, or null if not an image.
  */
 async function fetchImageFromUrl(
-  url: string
+  url: string,
 ): Promise<{ data: ArrayBuffer; contentType: string } | null> {
   try {
     const response = await fetch(url);
 
     if (!response.ok) {
       console.warn(
-        `Failed to download fallback image (${response.status} ${response.statusText}): ${url}`
+        `Failed to download fallback image (${response.status} ${response.statusText}): ${url}`,
       );
       return null;
     }
@@ -582,7 +582,10 @@ async function fetchImageFromUrl(
     console.log(`Retrieved fallback image with content type: ${contentType}`);
     return { data, contentType };
   } catch (error) {
-    console.error("An error occurred while fetching the fallback image:", error);
+    console.error(
+      "An error occurred while fetching the fallback image:",
+      error,
+    );
     return null;
   }
 }
@@ -601,7 +604,7 @@ async function fetchImageFromUrl(
 export async function fetchAlbumArt(
   artist: string,
   album: string,
-  options: FetchAlbumArtOptions = {}
+  options: FetchAlbumArtOptions = {},
 ): Promise<{ data: ArrayBuffer; contentType: string } | null> {
   const mbid = await searchMusicBrainz(artist, album);
 
@@ -611,7 +614,7 @@ export async function fetchAlbumArt(
       return coverArtResult;
     }
     console.log(
-      "No cover art found in Cover Art Archive, trying Discogs as fallback..."
+      "No cover art found in Cover Art Archive, trying Discogs as fallback...",
     );
   } else {
     console.log("No MBID found, trying Discogs as fallback...");
@@ -624,7 +627,7 @@ export async function fetchAlbumArt(
 
   if (options.fallbackImageUrl) {
     console.log(
-      `No album art found in any database, using fallback image: ${options.fallbackImageUrl}`
+      `No album art found in any database, using fallback image: ${options.fallbackImageUrl}`,
     );
     return await fetchImageFromUrl(options.fallbackImageUrl);
   }
@@ -642,7 +645,7 @@ export async function fetchAlbumArt(
 export async function saveAlbumArt(
   imageData: ArrayBuffer,
   contentType: string,
-  basePath: string
+  basePath: string,
 ): Promise<string | null> {
   try {
     const extension = getExtensionFromContentType(contentType);

@@ -53,7 +53,7 @@ export const useApi = () => {
 
   const updateMetadata = async (
     filePath: string,
-    tags: Record<string, string>
+    tags: Record<string, string>,
   ) => {
     return await apiCall("/metadata", {
       method: "PATCH",

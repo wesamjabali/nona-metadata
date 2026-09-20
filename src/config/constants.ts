@@ -27,7 +27,7 @@ export const apiKey: string = apiKeyEnv;
 const discogsApiKeyEnv = process.env.DISCOGS_API_KEY;
 if (!discogsApiKeyEnv) {
   console.warn(
-    "DISCOGS_API_KEY environment variable not set. Discogs fallback will be disabled."
+    "DISCOGS_API_KEY environment variable not set. Discogs fallback will be disabled.",
   );
 }
 export const discogsApiKey: string | undefined = discogsApiKeyEnv;

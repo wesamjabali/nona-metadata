@@ -207,9 +207,7 @@ async function handleLyrics(
   audioFilePath: string,
 ): Promise<string | null> {
   if (!artist || !title) {
-    console.log(
-      `Lyrics: Skipping (missing artist or title) for "${title}"`,
-    );
+    console.log(`Lyrics: Skipping (missing artist or title) for "${title}"`);
     return null;
   }
 

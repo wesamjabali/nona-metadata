@@ -26,10 +26,7 @@
               </Message>
             </div>
 
-            <div
-              v-else-if="cacheStats"
-              class="stats__grid"
-            >
+            <div v-else-if="cacheStats" class="stats__grid">
               <div
                 v-for="(value, key) in cacheStats"
                 :key="key"
@@ -54,10 +51,7 @@
           <template #content>
             <form class="cache__cleanup-form" @submit.prevent="performCleanup">
               <div class="cache__cleanup-field">
-                <label
-                  for="days-old"
-                  class="cache__cleanup-label"
-                >
+                <label for="days-old" class="cache__cleanup-label">
                   Delete entries older than (days)
                 </label>
                 <InputNumber
@@ -115,10 +109,7 @@
                     class="cache-entries__search-input"
                     @input="searchUrlEntries"
                   />
-                  <Button
-                    icon="pi pi-search"
-                    @click="searchUrlEntries"
-                  />
+                  <Button icon="pi pi-search" @click="searchUrlEntries" />
                 </div>
                 <Button
                   v-if="selectedUrlEntries.length > 0"
@@ -231,12 +222,18 @@
                 </Column>
                 <Column field="type" header="Type" sortable>
                   <template #body="{ data }">
-                    <Tag :value="data.type" :severity="getJobTypeSeverity(data.type)" />
+                    <Tag
+                      :value="data.type"
+                      :severity="getJobTypeSeverity(data.type)"
+                    />
                   </template>
                 </Column>
                 <Column field="status" header="Status" sortable>
                   <template #body="{ data }">
-                    <Tag :value="data.status" :severity="getJobStatusSeverity(data.status)" />
+                    <Tag
+                      :value="data.status"
+                      :severity="getJobStatusSeverity(data.status)"
+                    />
                   </template>
                 </Column>
                 <Column field="start_time" header="Started" sortable>
@@ -246,7 +243,7 @@
                 </Column>
                 <Column field="end_time" header="Ended" sortable>
                   <template #body="{ data }">
-                    {{ data.end_time ? formatDate(data.end_time) : '-' }}
+                    {{ data.end_time ? formatDate(data.end_time) : "-" }}
                   </template>
                 </Column>
                 <Column header="Actions">
@@ -270,7 +267,14 @@
 </template>
 
 <script setup>
-const { getCacheStats, cleanupCache, getCacheEntries, getJobEntries, deleteCacheEntries, deleteJobEntries } = useApi();
+const {
+  getCacheStats,
+  cleanupCache,
+  getCacheEntries,
+  getJobEntries,
+  deleteCacheEntries,
+  deleteJobEntries,
+} = useApi();
 
 // Existing state
 const loadingStats = ref(true);
@@ -302,10 +306,10 @@ const jobTotalRecords = ref(0);
 
 // Job status options for dropdown
 const jobStatusOptions = ref([
-  { label: 'Processing', value: 'processing' },
-  { label: 'Completed', value: 'completed' },
-  { label: 'Failed', value: 'failed' },
-  { label: 'Stopped', value: 'stopped' }
+  { label: "Processing", value: "processing" },
+  { label: "Completed", value: "completed" },
+  { label: "Failed", value: "failed" },
+  { label: "Stopped", value: "stopped" },
 ]);
 
 const fetchStats = async () => {
@@ -329,7 +333,7 @@ const fetchUrlEntries = async () => {
   const { data, error: apiError } = await getCacheEntries(
     urlCurrentPage.value,
     urlEntriesPerPage.value,
-    urlSearchTerm.value || undefined
+    urlSearchTerm.value || undefined,
   );
 
   if (apiError) {
@@ -348,7 +352,7 @@ const fetchJobEntries = async () => {
   const { data, error: apiError } = await getJobEntries(
     jobCurrentPage.value,
     jobEntriesPerPage.value,
-    jobStatusFilter.value || undefined
+    jobStatusFilter.value || undefined,
   );
 
   if (apiError) {
@@ -407,7 +411,7 @@ const deleteSelectedUrlEntries = async () => {
   if (selectedUrlEntries.value.length === 0) return;
 
   deletingUrlEntries.value = true;
-  const ids = selectedUrlEntries.value.map(entry => entry.id);
+  const ids = selectedUrlEntries.value.map((entry) => entry.id);
 
   const { error: apiError } = await deleteCacheEntries(ids);
 
@@ -426,7 +430,7 @@ const deleteSelectedJobEntries = async () => {
   if (selectedJobEntries.value.length === 0) return;
 
   deletingJobEntries.value = true;
-  const ids = selectedJobEntries.value.map(entry => entry.id);
+  const ids = selectedJobEntries.value.map((entry) => entry.id);
 
   const { error: apiError } = await deleteJobEntries(ids);
 
@@ -510,21 +514,31 @@ const truncateUrl = (url) => {
 
 const getJobTypeSeverity = (type) => {
   switch (type) {
-    case 'single': return 'info';
-    case 'playlist': return 'success';
-    case 'album-art': return 'warn';
-    case 'lyrics': return 'warn';
-    default: return 'secondary';
+    case "single":
+      return "info";
+    case "playlist":
+      return "success";
+    case "album-art":
+      return "warn";
+    case "lyrics":
+      return "warn";
+    default:
+      return "secondary";
   }
 };
 
 const getJobStatusSeverity = (status) => {
   switch (status) {
-    case 'processing': return 'info';
-    case 'completed': return 'success';
-    case 'failed': return 'danger';
-    case 'stopped': return 'warn';
-    default: return 'secondary';
+    case "processing":
+      return "info";
+    case "completed":
+      return "success";
+    case "failed":
+      return "danger";
+    case "stopped":
+      return "warn";
+    default:
+      return "secondary";
   }
 };
 
@@ -555,7 +569,7 @@ onMounted(() => {
   @media (min-width: 768px) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: start;
-    
+
     .card {
       display: flex;
       // sticky
@@ -564,13 +578,13 @@ onMounted(() => {
       top: 1.5rem;
       flex-direction: column;
       margin-top: 0 !important;
-      
+
       :deep(.p-card-body) {
         flex: 1;
         display: flex;
         flex-direction: column;
       }
-      
+
       :deep(.p-card-content) {
         flex: 1;
         display: flex;
@@ -588,7 +602,7 @@ onMounted(() => {
     align-items: center;
     margin-bottom: 1rem;
     gap: 1rem;
-    
+
     @media (max-width: 767px) {
       flex-direction: column;
       align-items: stretch;
@@ -692,20 +706,20 @@ onMounted(() => {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1rem;
   }
-  
+
   &__item {
     padding: 1rem;
     background: var(--surface-100);
     border-radius: 6px;
     border: 1px solid var(--surface-200);
   }
-  
+
   &__label {
     font-size: 0.875rem;
     color: var(--text-color-secondary);
     margin-bottom: 0.5rem;
   }
-  
+
   &__value {
     font-size: 1.5rem;
     font-weight: 600;
@@ -721,7 +735,7 @@ onMounted(() => {
       align-items: stretch;
       gap: 1rem;
     }
-    
+
     &__title {
       font-size: 1.5rem;
       margin-bottom: 0;
@@ -732,27 +746,27 @@ onMounted(() => {
     grid-template-columns: repeat(1, minmax(0, 1fr));
     gap: 1rem;
   }
-  
+
   .grid {
     &--cols-1 {
       gap: 0.75rem;
     }
   }
-  
+
   .stats {
     &__grid {
       grid-template-columns: repeat(1, minmax(0, 1fr));
       gap: 0.75rem;
     }
-    
+
     &__item {
       padding: 0.75rem;
     }
-    
+
     &__label {
       font-size: 0.75rem;
     }
-    
+
     &__value {
       font-size: 1.125rem;
     }
@@ -776,7 +790,7 @@ onMounted(() => {
     &__grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
-    
+
     &__item {
       padding: 1rem;
     }

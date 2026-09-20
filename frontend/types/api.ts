@@ -27,8 +27,10 @@ export type {
 } from "../../shared/types.js";
 
 // Frontend-specific types for computed progress values
-export interface ProcessingJobWithProgress
-  extends Omit<ProcessingJob, "progress"> {
+export interface ProcessingJobWithProgress extends Omit<
+  ProcessingJob,
+  "progress"
+> {
   progress?: number;
   originalProgress?: {
     total: number;

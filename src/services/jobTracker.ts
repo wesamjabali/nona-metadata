@@ -65,7 +65,7 @@ export class JobTracker {
     this.cleanupOldJobs();
 
     console.log(
-      `Created job ${id} for ${job.type}${job.url ? `: ${job.url}` : ""}`
+      `Created job ${id} for ${job.type}${job.url ? `: ${job.url}` : ""}`,
     );
     return id;
   }
@@ -75,7 +75,7 @@ export class JobTracker {
    */
   updateProgress(
     id: string,
-    progress: { total: number; completed: number; failed: number }
+    progress: { total: number; completed: number; failed: number },
   ): void {
     const job = this.jobs.get(id);
     if (job) {
@@ -107,7 +107,7 @@ export class JobTracker {
   completeJob(
     id: string,
     resultsOrSidecar: MetaData[] | SidecarResults | LyricsJobResults,
-    playlistTitle?: string
+    playlistTitle?: string,
   ): void {
     const job = this.jobs.get(id);
     if (job) {
@@ -118,17 +118,17 @@ export class JobTracker {
         job.results = resultsOrSidecar;
         job.playlistTitle = playlistTitle;
         console.log(
-          `Job ${id} completed successfully with ${resultsOrSidecar.length} results`
+          `Job ${id} completed successfully with ${resultsOrSidecar.length} results`,
         );
       } else if ("notFound" in resultsOrSidecar) {
         job.lyricsResults = resultsOrSidecar;
         console.log(
-          `Job ${id} completed successfully: ${resultsOrSidecar.fetched} lyrics fetched, ${resultsOrSidecar.existed} already existed, ${resultsOrSidecar.notFound} not found`
+          `Job ${id} completed successfully: ${resultsOrSidecar.fetched} lyrics fetched, ${resultsOrSidecar.existed} already existed, ${resultsOrSidecar.notFound} not found`,
         );
       } else {
         job.albumArtResults = resultsOrSidecar;
         console.log(
-          `Job ${id} completed successfully: ${resultsOrSidecar.fetched} album arts fetched, ${resultsOrSidecar.existed} already existed`
+          `Job ${id} completed successfully: ${resultsOrSidecar.fetched} album arts fetched, ${resultsOrSidecar.existed} already existed`,
         );
       }
 
