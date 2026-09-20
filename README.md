@@ -25,6 +25,8 @@ Nona-Metadata is a powerful, AI-driven music curation system that transforms con
 - 📁 **Automatic Organization** - Creates clean folder structures: `Artist/Album/Track.m4a`
 - 🎵 **Playlist Support** - Download and organize entire playlists with track numbering
 - 🏷️ **Rich Metadata Tagging** - Automatically adds title, artist, album, genre, language, and BPM
+- 🎤 **Automatic Lyrics** - Fetches time-synced `.lrc` lyrics from [LRCLIB](https://lrclib.net) for every track, in any language (English, Arabic, and more)
+- 🔁 **Bulk Re-processing** - Backfill album art or lyrics for your entire existing library at any time
 - 🔧 **Metadata Editor** - Web interface to view and edit metadata for existing files
 - 💾 **Intelligent Caching** - SQLite-based caching system to speed up repeated requests and reduce AI API calls
 - ⚡ **High Performance** - Built with Bun for lightning-fast execution
@@ -41,6 +43,7 @@ Nona-Metadata is a powerful, AI-driven music curation system that transforms con
 ### AI & External Services
 
 - **[Google Gemini AI](https://ai.google.dev/)** - Advanced AI for metadata extraction and song identification
+- **[LRCLIB](https://lrclib.net)** - Free, key-less lyrics database with time-synced (`.lrc`) results in the original script
 - **[yt-dlp](https://github.com/yt-dlp/yt-dlp)** - Robust media downloader (YouTube, SoundCloud, and more)
 - **[FFmpeg](https://ffmpeg.org/)** - Audio processing and metadata manipulation
 
@@ -69,6 +72,12 @@ Nona-Metadata is a powerful, AI-driven music curation system that transforms con
 | `GET`   | `/files`              | List all organized music files                |
 | `GET`   | `/metadata?file=path` | Get metadata for a specific file              |
 | `PATCH` | `/metadata`           | Update metadata for a file                    |
+| `POST`  | `/fetch-album-art`    | Backfill album art for all existing files     |
+| `POST`  | `/fetch-lyrics`       | Backfill lyrics for all existing files        |
+| `GET`   | `/lyrics`             | Get the `.lrc` sidecar for a track            |
+| `GET`   | `/album-art/:artist/:album` | Serve an album's cover image            |
+| `GET`   | `/jobs`               | List all processing jobs                      |
+| `GET`   | `/jobs/:id`           | Get a single job's status and results         |
 | `GET`   | `/cache/stats`        | Get cache statistics and information          |
 | `POST`  | `/cache/cleanup`      | Clean up old cache entries                    |
 
@@ -159,6 +168,40 @@ curl -X PATCH http://localhost:80/metadata \
   }'
 ```
 
+### Backfill Lyrics for Your Library
+
+The lyrics job is safe to re-run: tracks that already have a non-empty `.lrc`
+sidecar are skipped, so it only fetches what's missing.
+
+```bash
+curl -X POST http://localhost:80/fetch-lyrics
+# => { "jobId": "job_...", "statusUrl": "/jobs/job_..." }
+```
+
+Track progress, then read the lyrics back:
+
+```bash
+curl http://localhost:80/jobs/job_...
+
+# By track identity (resolved case-insensitively)
+curl "http://localhost:80/lyrics?artist=Emel%20Mathlouthi&title=Kelmti%20Horra"
+
+# Or by file path
+curl "http://localhost:80/lyrics?file=Artist/Album/Track.m4a"
+```
+
+You can also run the backfill directly without the server:
+
+```bash
+bun run src/scripts/fetchLyricsForExisting.ts
+```
+
+### Backfill Album Art for Your Library
+
+```bash
+curl -X POST http://localhost:80/fetch-album-art
+```
+
 ### Cache Management
 
 #### Get Cache Statistics
@@ -179,18 +222,32 @@ curl -X POST http://localhost:80/cache/cleanup \
 
 ```
 nona-metadata/
-├── server.ts           # Main server application
-├── index.html          # Web interface
-├── package.json        # Dependencies and scripts
-├── tsconfig.json       # TypeScript configuration
-├── bun.lock           # Dependency lock file
-├── cache.sqlite       # SQLite cache database
-├── cache.sqlite-shm   # SQLite shared memory file
-├── cache.sqlite-wal   # SQLite write-ahead log file
-└── music/             # Organized music library
+├── frontend/                    # Nuxt web interface
+├── shared/
+│   └── types.ts                 # Types shared by frontend and backend
+├── src/
+│   ├── server.ts                # Main server application
+│   ├── router.ts                # API route table
+│   ├── config/                  # Constants and configuration
+│   ├── middleware/              # CORS helpers
+│   ├── routes/                  # HTTP handlers
+│   │   ├── lyrics.ts            # POST /fetch-lyrics, GET /lyrics
+│   │   └── albumArt.ts          # POST /fetch-album-art
+│   ├── scripts/
+│   │   ├── fetchLyricsForExisting.ts     # Backfill lyrics for the whole library
+│   │   └── fetchAlbumArtForExisting.ts   # Backfill album art for the whole library
+│   ├── services/
+│   │   ├── ai.ts                # Gemini metadata extraction
+│   │   ├── albumArt.ts          # Cover art lookup (MusicBrainz / Cover Art Archive)
+│   │   ├── lyrics.ts            # Lyrics lookup (LRCLIB) and .lrc writing
+│   │   ├── videoProcessor.ts    # Download + tag + sidecar orchestration
+│   │   └── cache.ts             # SQLite cache
+│   └── utils/                   # File, path, command and matching helpers
+└── music/                       # Organized music library
     └── Artist/
         └── Album/
-            └── Track.m4a
+            ├── Track.m4a
+            └── Track.lrc        # Lyrics sidecar
 ```
 
 ## 💾 Intelligent Caching System
@@ -243,7 +300,8 @@ Nona-Metadata features a sophisticated SQLite-based caching system that dramatic
 6. **Enhancement**: AI corrects titles, identifies artists, albums, BPM, genres, and more
 7. **Organization**: Files are automatically organized in `Artist/Album/Track.m4a` structure
 8. **Tagging**: Rich metadata is embedded directly into M4A files
-9. **Management**: Use the web interface to browse, edit your library, and manage cache
+9. **Lyrics**: Time-synced lyrics are saved as an `.lrc` sidecar next to the audio file
+10. **Management**: Use the web interface to browse, edit your library, and manage cache
 
 ## 🔧 Configuration
 
@@ -284,6 +342,19 @@ The application automatically creates and manages the following SQLite database 
 - Handles track numbering for playlist downloads
 - Manages duplicate file scenarios
 
+### Automatic Lyrics (LRCLIB)
+
+Lyrics are fetched automatically while processing a track, and can be backfilled
+for the whole library via **Fetch Lyrics** in the web UI or `POST /fetch-lyrics`.
+
+- **Stored as sidecars**: Written next to the audio file as `Track.lrc`, using the standard LRC format with `[ti:]`, `[ar:]`, `[al:]` and `[length:]` headers
+- **Time-synced**: Synced lyrics are kept verbatim, so any LRC-aware player can follow along
+- **Any language**: Titles and artists are sent to LRCLIB in their original script — Arabic lyrics stay in Arabic, no transliteration
+- **Instrumentals**: Detected and marked, so they aren't retried on every run
+- **Efficient re-runs**: Non-empty `.lrc` files are skipped, so the job only fetches what's missing
+- **Polite by design**: Requests are serialized with a delay, and `429`/`Retry-After` responses are honored as LRCLIB requires
+- **Precise matching**: Uses the track's duration to disambiguate, falling back to duration-less and free-text searches
+
 ### Web Interface Features
 
 - Real-time processing status
@@ -291,6 +362,7 @@ The application automatically creates and manages the following SQLite database 
 - In-browser metadata editor
 - Cache statistics and management
 - Cache cleanup controls
+- One-click album art and lyrics backfill for the whole library
 - Custom tag addition
 - Responsive design for all devices
 

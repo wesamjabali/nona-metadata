@@ -513,6 +513,7 @@ const getJobTypeSeverity = (type) => {
     case 'single': return 'info';
     case 'playlist': return 'success';
     case 'album-art': return 'warn';
+    case 'lyrics': return 'warn';
     default: return 'secondary';
   }
 };

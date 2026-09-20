@@ -3,10 +3,32 @@
  * This file serves as the single source of truth for all shared interfaces
  */
 
+/**
+ * Result counters shared by the bulk sidecar jobs (album art, lyrics, ...).
+ */
+export interface SidecarResults {
+  processed: number;
+  fetched: number;
+  existed: number;
+  errors: number;
+}
+
+/**
+ * Lyrics jobs track "not found" separately from real errors, since
+ * instrumentals and obscure tracks legitimately have no lyrics.
+ */
+export interface LyricsJobResults {
+  processed: number;
+  fetched: number;
+  existed: number;
+  notFound: number;
+  errors: number;
+}
+
 export interface ProcessingJob {
   id: string;
   url?: string;
-  type: "single" | "playlist" | "album-art";
+  type: "single" | "playlist" | "album-art" | "lyrics";
   status: "processing" | "completed" | "failed" | "stopped";
   startTime: Date | string;
   endTime?: Date | string;
@@ -18,12 +40,8 @@ export interface ProcessingJob {
   results?: MetaData[];
   errors?: string[];
   playlistTitle?: string;
-  albumArtResults?: {
-    processed: number;
-    fetched: number;
-    existed: number;
-    errors: number;
-  };
+  albumArtResults?: SidecarResults;
+  lyricsResults?: LyricsJobResults;
 }
 
 export interface MetaData {
@@ -39,6 +57,7 @@ export interface MetaData {
   tags: string[] | null;
   language: string | null;
   albumArtPath?: string | null;
+  lyricsPath?: string | null;
 }
 
 export interface CacheStats {

@@ -56,10 +56,14 @@ export class CacheManager {
         errors_json TEXT,
         playlist_title TEXT,
         album_art_results_json TEXT,
+        lyrics_results_json TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         last_accessed DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    // Migration: older databases predate the lyrics results column.
+    this.ensureColumn("jobs_cache", "lyrics_results_json", "TEXT");
 
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_jobs_cache_id ON jobs_cache(id)
@@ -86,8 +90,8 @@ export class CacheManager {
       INSERT OR REPLACE INTO jobs_cache (
         id, url, type, status, start_time, end_time, 
         progress_json, results_json, errors_json, 
-        playlist_title, album_art_results_json, last_accessed
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        playlist_title, album_art_results_json, lyrics_results_json, last_accessed
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `);
 
     this.jobSelectQuery = this.db.prepare(`
@@ -102,7 +106,7 @@ export class CacheManager {
       UPDATE jobs_cache SET 
         status = ?, end_time = ?, progress_json = ?, 
         results_json = ?, errors_json = ?, playlist_title = ?, 
-        album_art_results_json = ?, last_accessed = CURRENT_TIMESTAMP
+        album_art_results_json = ?, lyrics_results_json = ?, last_accessed = CURRENT_TIMESTAMP
       WHERE id = ?
     `);
 
@@ -111,6 +115,25 @@ export class CacheManager {
     `);
 
     console.log("✅ Cache database initialized");
+  }
+
+  /**
+   * Adds a column to a table when it is missing (lightweight migration for
+   * databases created by older versions).
+   */
+  private ensureColumn(table: string, column: string, type: string): void {
+    try {
+      const columns = this.db.prepare(`PRAGMA table_info(${table})`).all() as {
+        name: string;
+      }[];
+
+      if (!columns.some((existing) => existing.name === column)) {
+        this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+        console.log(`📦 Migrated ${table}: added column ${column}`);
+      }
+    } catch (error) {
+      console.warn(`Failed to ensure column ${table}.${column}:`, error);
+    }
   }
 
   /**
@@ -216,6 +239,9 @@ export class CacheManager {
       const albumArtResultsJson = job.albumArtResults
         ? JSON.stringify(job.albumArtResults)
         : null;
+      const lyricsResultsJson = job.lyricsResults
+        ? JSON.stringify(job.lyricsResults)
+        : null;
 
       this.jobInsertQuery.run(
         job.id,
@@ -234,7 +260,8 @@ export class CacheManager {
         resultsJson,
         errorsJson,
         job.playlistTitle || null,
-        albumArtResultsJson
+        albumArtResultsJson,
+        lyricsResultsJson
       );
 
       console.log(`💾 Saved job ${job.id} to cache`);
@@ -295,6 +322,9 @@ export class CacheManager {
       const albumArtResultsJson = job.albumArtResults
         ? JSON.stringify(job.albumArtResults)
         : null;
+      const lyricsResultsJson = job.lyricsResults
+        ? JSON.stringify(job.lyricsResults)
+        : null;
 
       this.jobUpdateQuery.run(
         job.status,
@@ -308,6 +338,7 @@ export class CacheManager {
         errorsJson,
         job.playlistTitle || null,
         albumArtResultsJson,
+        lyricsResultsJson,
         job.id
       );
 
@@ -359,6 +390,10 @@ export class CacheManager {
 
     if (dbResult.playlist_title) {
       job.playlistTitle = dbResult.playlist_title;
+    }
+
+    if (dbResult.lyrics_results_json) {
+      job.lyricsResults = JSON.parse(dbResult.lyrics_results_json);
     }
 
     if (dbResult.album_art_results_json) {

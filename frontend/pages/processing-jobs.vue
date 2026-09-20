@@ -39,6 +39,8 @@
                         ? `Playlist (${slotProps.data.results?.length || 0})`
                         : slotProps.data.type === "album-art"
                         ? "Album Art"
+                        : slotProps.data.type === "lyrics"
+                        ? "Lyrics"
                         : "Video"
                     }}
                   </span>
@@ -193,6 +195,24 @@
                       </div>
                     </template>
                   </Column>
+
+                  <Column field="lyricsPath" header="Lyrics">
+                    <template #body="videoSlot">
+                      <div
+                        v-if="videoSlot.data.lyricsPath"
+                        class="album-art__button-container"
+                      >
+                        <Button
+                          class="p-button-text p-button-sm album-art__button"
+                          style="width: 100%"
+                          @click="viewLyrics(videoSlot.data)"
+                        ><i class="pi pi-align-left" /></Button>
+                      </div>
+                      <div v-else class="album-art__missing">
+                        <i class="pi pi-times album-art__missing-icon"/>
+                      </div>
+                    </template>
+                  </Column>
                 </DataTable>
               </div>
 
@@ -252,6 +272,46 @@
                   </div>
                 </div>
               </div>
+              <div v-else-if="slotProps.data.type === 'lyrics'" class="expansion__container">
+                <h4 class="expansion__title">
+                  Lyrics Processing Results
+                </h4>
+                <div
+                  v-if="slotProps.data.lyricsResults"
+                  class="album-art__results-grid"
+                >
+                  <div class="album-art__stat">
+                    <div class="album-art__stat-number album-art__stat-number--blue">
+                      {{ slotProps.data.lyricsResults.processed }}
+                    </div>
+                    <div class="album-art__stat-label">Processed</div>
+                  </div>
+                  <div class="album-art__stat">
+                    <div class="album-art__stat-number album-art__stat-number--green">
+                      {{ slotProps.data.lyricsResults.fetched }}
+                    </div>
+                    <div class="album-art__stat-label">Fetched</div>
+                  </div>
+                  <div class="album-art__stat">
+                    <div class="album-art__stat-number album-art__stat-number--yellow">
+                      {{ slotProps.data.lyricsResults.existed }}
+                    </div>
+                    <div class="album-art__stat-label">Already Existed</div>
+                  </div>
+                  <div class="album-art__stat">
+                    <div class="album-art__stat-number album-art__stat-number--blue">
+                      {{ slotProps.data.lyricsResults.notFound }}
+                    </div>
+                    <div class="album-art__stat-label">Not Found</div>
+                  </div>
+                  <div class="album-art__stat">
+                    <div class="album-art__stat-number album-art__stat-number--red">
+                      {{ slotProps.data.lyricsResults.errors }}
+                    </div>
+                    <div class="album-art__stat-label">Errors</div>
+                  </div>
+                </div>
+              </div>
             </template>
           </DataTable>
 
@@ -293,6 +353,19 @@ const viewAlbumArt = (artist: string, album:string) => {
   window.open(albumArtUrl, '_blank', 'noopener,noreferrer');
 };
 
+const viewLyrics = (item: MetaData) => {
+  const config = useRuntimeConfig();
+  const baseURL = config.public.apiBase;
+  const params = new URLSearchParams({
+    artist: item.artist,
+    title: item.title,
+  });
+  if (item.album) {
+    params.set('album', item.album);
+  }
+  window.open(`${baseURL}/lyrics?${params.toString()}`, '_blank', 'noopener,noreferrer');
+};
+
 const fetchJobs = async () => {
   loading.value = true;
   error.value = "";
@@ -316,6 +389,7 @@ const fetchJobs = async () => {
           errors: job.errors,
           playlistTitle: job.playlistTitle,
           albumArtResults: job.albumArtResults,
+          lyricsResults: job.lyricsResults,
           originalProgress: job.progress,
         };
 
@@ -391,6 +465,11 @@ const getJobTitle = (job: ProcessingJobWithProgress): string => {
 
   if (job.type === "album-art") {
     return "Album Art Processing";
+  }
+
+
+  if (job.type === "lyrics") {
+    return "Lyrics Processing";
   }
 
 

@@ -1,4 +1,9 @@
-import type { MetaData, ProcessingJob } from "../types/metadata.js";
+import type {
+  LyricsJobResults,
+  MetaData,
+  ProcessingJob,
+  SidecarResults,
+} from "../types/metadata.js";
 import type { CacheManager } from "./cache.js";
 
 /**
@@ -33,7 +38,7 @@ export class JobTracker {
    * Create a new job
    */
   createJob(url: string, type: "single" | "playlist"): string;
-  createJob(type: "album-art"): string;
+  createJob(type: "album-art" | "lyrics"): string;
   createJob(urlOrType: string, type?: "single" | "playlist"): string {
     const id = this.generateJobId();
 
@@ -49,7 +54,7 @@ export class JobTracker {
     } else {
       job = {
         id,
-        type: urlOrType as "album-art",
+        type: urlOrType as "album-art" | "lyrics",
         status: "processing",
         startTime: new Date(),
       };
@@ -97,20 +102,11 @@ export class JobTracker {
    * Complete a job successfully
    */
   completeJob(id: string, results: MetaData[], playlistTitle?: string): void;
+  completeJob(id: string, albumArtResults: SidecarResults): void;
+  completeJob(id: string, lyricsResults: LyricsJobResults): void;
   completeJob(
     id: string,
-    albumArtResults: {
-      processed: number;
-      fetched: number;
-      existed: number;
-      errors: number;
-    }
-  ): void;
-  completeJob(
-    id: string,
-    resultsOrAlbumArt:
-      | MetaData[]
-      | { processed: number; fetched: number; existed: number; errors: number },
+    resultsOrSidecar: MetaData[] | SidecarResults | LyricsJobResults,
     playlistTitle?: string
   ): void {
     const job = this.jobs.get(id);
@@ -118,16 +114,21 @@ export class JobTracker {
       job.status = "completed";
       job.endTime = new Date();
 
-      if (Array.isArray(resultsOrAlbumArt)) {
-        job.results = resultsOrAlbumArt;
+      if (Array.isArray(resultsOrSidecar)) {
+        job.results = resultsOrSidecar;
         job.playlistTitle = playlistTitle;
         console.log(
-          `Job ${id} completed successfully with ${resultsOrAlbumArt.length} results`
+          `Job ${id} completed successfully with ${resultsOrSidecar.length} results`
+        );
+      } else if ("notFound" in resultsOrSidecar) {
+        job.lyricsResults = resultsOrSidecar;
+        console.log(
+          `Job ${id} completed successfully: ${resultsOrSidecar.fetched} lyrics fetched, ${resultsOrSidecar.existed} already existed, ${resultsOrSidecar.notFound} not found`
         );
       } else {
-        job.albumArtResults = resultsOrAlbumArt;
+        job.albumArtResults = resultsOrSidecar;
         console.log(
-          `Job ${id} completed successfully: ${resultsOrAlbumArt.fetched} album arts fetched, ${resultsOrAlbumArt.existed} already existed`
+          `Job ${id} completed successfully: ${resultsOrSidecar.fetched} album arts fetched, ${resultsOrSidecar.existed} already existed`
         );
       }
 

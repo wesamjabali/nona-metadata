@@ -12,6 +12,7 @@ export type {
   JobCacheEntry,
   JobEntriesResponse,
   JobsResponse,
+  LyricsJobResults,
   MetaData,
   MetadataRequest,
   MetadataResponse,
@@ -19,4 +20,5 @@ export type {
   ProcessVideoRequest,
   ProcessVideoResponse,
   ProcessingJob,
+  SidecarResults,
 } from "../../shared/types.js";

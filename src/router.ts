@@ -12,6 +12,7 @@ import {
 import { handleFileDelete } from "./routes/delete.js";
 import { handleFilesList } from "./routes/files.js";
 import { handleGetAllJobs, handleGetJobStatus } from "./routes/jobs.js";
+import { handleFetchLyrics, handleServeLyrics } from "./routes/lyrics.js";
 import { handleGetMetadata, handleUpdateMetadata } from "./routes/metadata.js";
 import { handlePlaylistInfo, handleProcessVideo } from "./routes/process.js";
 import { handleStaticFile, handleVueRoute } from "./routes/static.js";
@@ -102,6 +103,14 @@ export class Router {
         return handleFetchAlbumArt(request, this.jobTracker);
       }
 
+      if (method === "POST" && pathname === "/fetch-lyrics") {
+        return handleFetchLyrics(request, this.jobTracker);
+      }
+
+      if (method === "GET" && pathname === "/lyrics") {
+        return handleServeLyrics(request);
+      }
+
       if (method === "GET" && pathname.startsWith("/album-art")) {
         return handleServeAlbumArt(request);
       }
@@ -130,7 +139,7 @@ export class Router {
       }
 
       return createErrorResponse(
-        "Supported endpoints: GET /, GET /processing-jobs, GET /files, DELETE /files, GET /cache/stats, GET /cache/entries, GET /cache/jobs, DELETE /cache/entries, DELETE /cache/jobs, POST /cache/cleanup, GET /metadata, PATCH /metadata, GET /playlist-info, GET /jobs, GET /jobs/:id, POST /, POST /fetch-album-art, GET /:artist/:album (album art)",
+        "Supported endpoints: GET /, GET /processing-jobs, GET /files, DELETE /files, GET /cache/stats, GET /cache/entries, GET /cache/jobs, DELETE /cache/entries, DELETE /cache/jobs, POST /cache/cleanup, GET /metadata, PATCH /metadata, GET /playlist-info, GET /jobs, GET /jobs/:id, POST /, POST /fetch-album-art, GET /:artist/:album (album art), POST /fetch-lyrics, GET /lyrics?file=:path",
         undefined,
         405
       );

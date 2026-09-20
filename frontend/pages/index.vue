@@ -119,6 +119,15 @@
               >
                 Fetch Album Art
               </Button>
+              <Button
+                size="large"
+                severity="secondary"
+                class="summary__actions-button"
+                :loading="fetchingLyrics"
+                @click="handleFetchLyrics"
+              >
+                Fetch Lyrics
+              </Button>
             </div>
           </div>
           <div v-if="fetchAlbumArtResult" class="summary__result">
@@ -128,6 +137,15 @@
               :closable="true"
             >
               {{ fetchAlbumArtResult.message }}
+            </Message>
+          </div>
+          <div v-if="fetchLyricsResult" class="summary__result">
+            <Message
+              style="margin-top: 1rem"
+              :severity="fetchLyricsResult.severity"
+              :closable="true"
+            >
+              {{ fetchLyricsResult.message }}
             </Message>
           </div>
         </template>
@@ -460,6 +478,8 @@ const {
 
 const fetchingAlbumArt = ref(false);
 const fetchAlbumArtResult = ref(null);
+const fetchingLyrics = ref(false);
+const fetchLyricsResult = ref(null);
 
 const handleFetchAlbumArt = async () => {
   fetchAlbumArtResult.value = null;
@@ -487,6 +507,34 @@ const handleFetchAlbumArt = async () => {
     };
   }
   fetchingAlbumArt.value = false;
+};
+
+const handleFetchLyrics = async () => {
+  fetchLyricsResult.value = null;
+  fetchingLyrics.value = true;
+  try {
+    const response = await fetch(`${apiBase}/fetch-lyrics`, {
+      method: "POST",
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      fetchLyricsResult.value = {
+        severity: "error",
+        message: data?.message || "Failed to fetch lyrics",
+      };
+    } else {
+      fetchLyricsResult.value = {
+        severity: "success",
+        message: data?.message || "Lyrics fetch started!",
+      };
+    }
+  } catch (error) {
+    fetchLyricsResult.value = {
+      severity: "error",
+      message: error?.message || "Failed to fetch lyrics",
+    };
+  }
+  fetchingLyrics.value = false;
 };
 
 const youtubeUrl = ref("");

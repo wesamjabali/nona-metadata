@@ -172,6 +172,40 @@ export async function findExistingAlbumArt(
 }
 
 /**
+ * Derives the `.lrc` sidecar path for an audio file (without checking existence).
+ * @param audioFilePath The path to the audio file.
+ * @returns The lyrics sidecar path, e.g. `Artist/Album/Song.lrc`.
+ */
+export function getLyricsFilePath(audioFilePath: string): string {
+  return `${removeFileExtension(audioFilePath)}.lrc`;
+}
+
+/**
+ * Checks whether a non-empty `.lrc` lyrics sidecar exists next to an audio file.
+ * @param audioFilePath The path to the audio file.
+ * @returns The actual lyrics file path if found, null otherwise.
+ */
+export async function findExistingLyrics(
+  audioFilePath: string,
+): Promise<string | null> {
+  const lyricsPath = getLyricsFilePath(audioFilePath);
+
+  for (const candidate of [lyricsPath, `${removeFileExtension(audioFilePath)}.LRC`]) {
+    try {
+      const stats = await fs.stat(candidate);
+      // Treat empty files as missing so they get re-fetched.
+      if (stats.size > 0) {
+        return candidate;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
+/**
  * Checks if a URL is a playlist URL.
  * @param url The URL to check.
  * @returns True if the URL contains playlist indicators.

@@ -544,14 +544,64 @@ async function searchDiscogsForAlbumArt(
 }
 
 /**
+ * Optional inputs for {@link fetchAlbumArt}.
+ */
+export interface FetchAlbumArtOptions {
+  /**
+   * Image URL to use when no music database has a match. Typically the source
+   * video's thumbnail, which at least gives the album folder some artwork.
+   */
+  fallbackImageUrl?: string;
+}
+
+/**
+ * Downloads an image from an arbitrary URL.
+ * @param url The image URL to download.
+ * @returns An object with image data and content type, or null if not an image.
+ */
+async function fetchImageFromUrl(
+  url: string
+): Promise<{ data: ArrayBuffer; contentType: string } | null> {
+  try {
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      console.warn(
+        `Failed to download fallback image (${response.status} ${response.statusText}): ${url}`
+      );
+      return null;
+    }
+
+    const contentType = response.headers.get("content-type") || "image/jpeg";
+    if (!contentType.toLowerCase().startsWith("image/")) {
+      console.warn(`Fallback URL is not an image (${contentType}): ${url}`);
+      return null;
+    }
+
+    const data = await response.arrayBuffer();
+    console.log(`Retrieved fallback image with content type: ${contentType}`);
+    return { data, contentType };
+  } catch (error) {
+    console.error("An error occurred while fetching the fallback image:", error);
+    return null;
+  }
+}
+
+/**
  * Fetches album art for a given artist and album.
+ *
+ * Lookup order: MusicBrainz / Cover Art Archive, then Discogs, then the
+ * optional caller-supplied fallback image (e.g. a video thumbnail).
+ *
  * @param artist The artist's name.
  * @param album The album's title.
+ * @param options Optional fallback image when no provider has a match.
  * @returns An object with image data and content type, or null if not found.
  */
 export async function fetchAlbumArt(
   artist: string,
-  album: string
+  album: string,
+  options: FetchAlbumArtOptions = {}
 ): Promise<{ data: ArrayBuffer; contentType: string } | null> {
   const mbid = await searchMusicBrainz(artist, album);
 
@@ -559,16 +609,27 @@ export async function fetchAlbumArt(
     const coverArtResult = await getAlbumCover(mbid);
     if (coverArtResult) {
       return coverArtResult;
-    } else {
-      console.log(
-        "No cover art found in Cover Art Archive, trying Discogs as fallback..."
-      );
-      return await searchDiscogsForAlbumArt(artist, album);
     }
+    console.log(
+      "No cover art found in Cover Art Archive, trying Discogs as fallback..."
+    );
   } else {
     console.log("No MBID found, trying Discogs as fallback...");
-    return await searchDiscogsForAlbumArt(artist, album);
   }
+
+  const discogsResult = await searchDiscogsForAlbumArt(artist, album);
+  if (discogsResult) {
+    return discogsResult;
+  }
+
+  if (options.fallbackImageUrl) {
+    console.log(
+      `No album art found in any database, using fallback image: ${options.fallbackImageUrl}`
+    );
+    return await fetchImageFromUrl(options.fallbackImageUrl);
+  }
+
+  return null;
 }
 
 /**

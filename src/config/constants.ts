@@ -115,6 +115,9 @@ export const pathNormalization = {
   maxFilenameLength: 100,
 } as const;
 
+// Audio file extensions that make up the music library
+export const musicFileExtensions = [".m4a", ".mp3", ".flac", ".wav"] as const;
+
 // Buffer sizes for various operations
 export const bufferSizes = {
   command: 1024 * 1024 * 5,

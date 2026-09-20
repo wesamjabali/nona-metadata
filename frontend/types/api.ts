@@ -15,6 +15,7 @@ export type {
   JobCacheEntry,
   JobEntriesResponse,
   JobsResponse,
+  LyricsJobResults,
   MetaData,
   MetadataRequest,
   MetadataResponse,
@@ -22,6 +23,7 @@ export type {
   ProcessingJob,
   ProcessVideoRequest,
   ProcessVideoResponse,
+  SidecarResults,
 } from "../../shared/types.js";
 
 // Frontend-specific types for computed progress values

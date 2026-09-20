@@ -81,6 +81,12 @@ export const useApi = () => {
     });
   };
 
+  const fetchLyrics = async () => {
+    return await apiCall("/fetch-lyrics", {
+      method: "POST",
+    });
+  };
+
   const getCacheStats = async () => {
     return await apiCall("/cache/stats");
   };
@@ -144,6 +150,7 @@ export const useApi = () => {
     getJobs,
     getJob,
     fetchAlbumArt,
+    fetchLyrics,
     getCacheStats,
     cleanupCache,
     getCacheEntries,

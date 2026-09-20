@@ -8,6 +8,7 @@ import { executeCommand } from "../utils/command.js";
 import {
   ensureDirectory,
   findExistingAlbumArt,
+  findExistingLyrics,
   getAlbumArtPath,
   sanitizeFileName,
 } from "../utils/file.js";
@@ -15,6 +16,7 @@ import { getExistingAlbumGenre } from "../utils/genreUtils.js";
 import { generateContentWithRetry } from "./ai.js";
 import { fetchAlbumArt, saveAlbumArt } from "./albumArt.js";
 import { CacheManager } from "./cache.js";
+import { fetchLyrics, saveLyrics } from "./lyrics.js";
 import { downloadVideo, getVideoInfo } from "./youtube.js";
 
 /**
@@ -89,14 +91,39 @@ class AlbumArtQueue {
 const albumArtQueue = new AlbumArtQueue();
 
 /**
+ * Picks the most useful thumbnail URL from a yt-dlp video payload, if any.
+ * @param videoInfo The yt-dlp video metadata.
+ * @returns The best thumbnail URL, or undefined when none is available.
+ */
+function pickThumbnailUrl(videoInfo: any): string | undefined {
+  const thumbnails = Array.isArray(videoInfo?.thumbnails)
+    ? videoInfo.thumbnails.filter(
+        (thumbnail: any) =>
+          typeof thumbnail?.url === "string" &&
+          thumbnail?.rows === undefined &&
+          thumbnail?.columns === undefined,
+      )
+    : [];
+
+  const largest = thumbnails.sort(
+    (a: any, b: any) =>
+      (b.width ?? 0) * (b.height ?? 0) - (a.width ?? 0) * (a.height ?? 0),
+  )[0];
+
+  return largest?.url ?? videoInfo?.thumbnail;
+}
+
+/**
  * Fetches and saves album art if it doesn't already exist
  * @param artist The artist name
  * @param album The album name
+ * @param fallbackImageUrl Optional URL to use when no provider has a match
  * @returns The path to the album art file, or null if not found/saved
  */
 async function handleAlbumArt(
   artist: string,
   album: string | null,
+  fallbackImageUrl?: string,
 ): Promise<string | null> {
   if (!album || album === "Unknown Album") {
     console.log(
@@ -132,7 +159,9 @@ async function handleAlbumArt(
       }
 
       console.log(`Album art: Fetching for "${album}" by "${artist}"...`);
-      const albumArtResult = await fetchAlbumArt(artist, album);
+      const albumArtResult = await fetchAlbumArt(artist, album, {
+        fallbackImageUrl,
+      });
 
       if (albumArtResult) {
         const savedPath = await saveAlbumArt(
@@ -158,6 +187,57 @@ async function handleAlbumArt(
 
     return null;
   });
+}
+
+/**
+ * Fetches lyrics for a track and saves them as an `.lrc` sidecar file next to
+ * the audio file, if they don't already exist.
+ * @param artist The artist name
+ * @param title The track title
+ * @param album The album name
+ * @param duration The track duration in seconds
+ * @param audioFilePath The organized audio file path
+ * @returns The path to the lyrics file, or null if not found/saved
+ */
+async function handleLyrics(
+  artist: string,
+  title: string,
+  album: string | null,
+  duration: number | null,
+  audioFilePath: string,
+): Promise<string | null> {
+  if (!artist || !title) {
+    console.log(
+      `Lyrics: Skipping (missing artist or title) for "${title}"`,
+    );
+    return null;
+  }
+
+  const existingLyrics = await findExistingLyrics(audioFilePath);
+  if (existingLyrics) {
+    console.log(`Lyrics: Already exists: ${existingLyrics}`);
+    return existingLyrics;
+  }
+
+  try {
+    console.log(`Lyrics: Fetching for "${title}" by "${artist}"...`);
+    const lyrics = await fetchLyrics(artist, title, album, duration);
+
+    if (!lyrics) {
+      console.log(`Lyrics: Not found for "${title}" by "${artist}"`);
+      return null;
+    }
+
+    return await saveLyrics(lyrics, audioFilePath, {
+      artist,
+      title,
+      album,
+      duration,
+    });
+  } catch (error) {
+    console.warn(`Lyrics: Error fetching for "${title}":`, error);
+    return null;
+  }
 }
 
 /**
@@ -225,11 +305,22 @@ export async function processVideo(
         }
       }
 
-      const albumArtPath = await handleAlbumArt(
-        aiVideoData.artist,
-        aiVideoData.album,
-      );
+      const [albumArtPath, lyricsPath] = await Promise.all([
+        handleAlbumArt(
+          aiVideoData.artist,
+          aiVideoData.album,
+          pickThumbnailUrl(videoInfo),
+        ),
+        handleLyrics(
+          aiVideoData.artist,
+          aiVideoData.title,
+          aiVideoData.album,
+          aiVideoData.duration ?? null,
+          caseMatchedPath.filePath,
+        ),
+      ]);
       aiVideoData.albumArtPath = albumArtPath;
+      aiVideoData.lyricsPath = lyricsPath;
 
       initialTempFileName = join(
         baseDirectory,
@@ -371,6 +462,7 @@ Release Year: ${videoInfo.release_year || "N/A"}
       const cacheableMetadata = { ...aiVideoData };
       delete cacheableMetadata.duration;
       delete cacheableMetadata.albumArtPath;
+      delete cacheableMetadata.lyricsPath;
       cache.set(cleanUrl, cacheableMetadata);
     } catch (cacheError) {
       console.warn(`Failed to cache metadata for ${cleanUrl}:`, cacheError);
@@ -410,16 +502,28 @@ Release Year: ${videoInfo.release_year || "N/A"}
       }
     }
 
-    const albumArtPath = await handleAlbumArt(
-      aiVideoData.artist,
-      aiVideoData.album,
-    );
-    aiVideoData.albumArtPath = albumArtPath;
-
     const organizedFilePath = caseMatchedPath.filePath;
 
     const targetDir = join(organizedFilePath, "..");
     await ensureDirectory(targetDir);
+
+    // Directory must exist before the album art / lyrics sidecars are written.
+    const [albumArtPath, lyricsPath] = await Promise.all([
+      handleAlbumArt(
+        aiVideoData.artist,
+        aiVideoData.album,
+        pickThumbnailUrl(videoInfo),
+      ),
+      handleLyrics(
+        aiVideoData.artist,
+        aiVideoData.title,
+        aiVideoData.album,
+        aiVideoData.duration ?? null,
+        caseMatchedPath.filePath,
+      ),
+    ]);
+    aiVideoData.albumArtPath = albumArtPath;
+    aiVideoData.lyricsPath = lyricsPath;
 
     ffmpegTempFileName = organizedFilePath.replace(".m4a", "_ffmpeg_temp.m4a");
     const ffmpegArgs = [
