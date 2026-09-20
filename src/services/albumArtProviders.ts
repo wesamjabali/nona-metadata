@@ -20,13 +20,13 @@
  */
 
 import { discogsApiKey } from "../config/constants.js";
+import type { AlbumMatchScore } from "../utils/musicMatching.js";
 import {
   MIN_ALBUM_MATCH_SCORE,
   MIN_ALBUM_TITLE_MATCH_SCORE,
   MIN_ARTIST_MATCH_SCORE,
   scoreAlbumMatch,
 } from "../utils/musicMatching.js";
-import type { AlbumMatchScore } from "../utils/musicMatching.js";
 
 const USER_AGENT =
   "nona-metadata/1.0.0 (https://github.com/nona-metadata/nona-metadata)";
@@ -259,9 +259,7 @@ async function requestItunes(
     return (data.results ?? [])
       .filter(
         (album) =>
-          !!album.collectionName &&
-          !!album.artistName &&
-          !!album.artworkUrl100,
+          !!album.collectionName && !!album.artistName && !!album.artworkUrl100,
       )
       .map((album) => ({
         provider: "itunes" as const,
@@ -348,7 +346,9 @@ async function requestDeezer(term: string): Promise<AlbumArtCandidate[]> {
     return data.data
       .filter(
         (album) =>
-          !!album.title && !!album.artist?.name && !!(album.cover_xl ?? album.cover_big),
+          !!album.title &&
+          !!album.artist?.name &&
+          !!(album.cover_xl ?? album.cover_big),
       )
       .map((album) => ({
         provider: "deezer" as const,
@@ -427,7 +427,9 @@ async function requestMusicBrainz(
         return [];
       }
 
-      const data = (await response.json()) as { releases?: MusicBrainzRelease[] };
+      const data = (await response.json()) as {
+        releases?: MusicBrainzRelease[];
+      };
       return data.releases ?? [];
     } catch (error) {
       console.warn("MusicBrainz search error:", error);
@@ -546,7 +548,9 @@ export async function searchDiscogsCandidates(
         return [] as DiscogsSearchResult[];
       }
 
-      const data = (await response.json()) as { results?: DiscogsSearchResult[] };
+      const data = (await response.json()) as {
+        results?: DiscogsSearchResult[];
+      };
       return data.results ?? [];
     } catch (error) {
       console.warn("Discogs search error:", error);

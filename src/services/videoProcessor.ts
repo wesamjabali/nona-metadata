@@ -15,8 +15,8 @@ import {
 import { getExistingAlbumGenre } from "../utils/genreUtils.js";
 import { buildSearchHints, pickThumbnailUrl } from "../utils/thumbnail.js";
 import { generateContentWithRetry } from "./ai.js";
-import { fetchAlbumArt, saveAlbumArt } from "./albumArt.js";
 import type { AlbumArtHints } from "./albumArt.js";
+import { fetchAlbumArt, saveAlbumArt } from "./albumArt.js";
 import { CacheManager } from "./cache.js";
 import { fetchLyrics, saveLyrics } from "./lyrics.js";
 import { downloadVideo, getVideoInfo } from "./youtube.js";

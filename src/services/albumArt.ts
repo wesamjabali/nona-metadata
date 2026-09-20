@@ -19,15 +19,16 @@
  * to the thumbnail fallback.
  */
 
-import { dedupeCandidates, rankCandidates } from "./albumArtProviders.js";
+import { removeFileExtension } from "../utils/file.js";
 import type { AlbumArtCandidate, AlbumArtQuery } from "./albumArtProviders.js";
 import {
+  dedupeCandidates,
+  rankCandidates,
   searchDeezerCandidates,
   searchDiscogsCandidates,
   searchItunesCandidates,
   searchMusicBrainzCandidates,
 } from "./albumArtProviders.js";
-import { removeFileExtension } from "../utils/file.js";
 
 const USER_AGENT =
   "nona-metadata/1.0.0 (https://github.com/nona-metadata/nona-metadata)";
@@ -136,9 +137,18 @@ export async function fetchImageFromUrl(
  */
 function cleanMediaTitle(title: string): string | null {
   const cleaned = title
-    .replace(/\((?:[^)]*(?:official|lyrics?|audio|video|visuali[sz]er)[^)]*)\)/gi, " ")
-    .replace(/\[(?:[^\]]*(?:official|lyrics?|audio|video|visuali[sz]er)[^\]]*)\]/gi, " ")
-    .replace(/\b(?:official\s+)?(?:music\s+)?(?:video|audio|lyric\s+video|visualizer)\b/gi, " ")
+    .replace(
+      /\((?:[^)]*(?:official|lyrics?|audio|video|visuali[sz]er)[^)]*)\)/gi,
+      " ",
+    )
+    .replace(
+      /\[(?:[^\]]*(?:official|lyrics?|audio|video|visuali[sz]er)[^\]]*)\]/gi,
+      " ",
+    )
+    .replace(
+      /\b(?:official\s+)?(?:music\s+)?(?:video|audio|lyric\s+video|visualizer)\b/gi,
+      " ",
+    )
     .replace(/\s+/g, " ")
     .trim();
 
@@ -318,7 +328,10 @@ export async function fetchAlbumArt(
     searchDiscogsCandidates(query),
   ]);
 
-  const secondaryImage = await downloadBestCandidate(secondaryCandidates, query);
+  const secondaryImage = await downloadBestCandidate(
+    secondaryCandidates,
+    query,
+  );
   if (secondaryImage) {
     return secondaryImage;
   }
