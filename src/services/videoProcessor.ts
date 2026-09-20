@@ -13,8 +13,10 @@ import {
   sanitizeFileName,
 } from "../utils/file.js";
 import { getExistingAlbumGenre } from "../utils/genreUtils.js";
+import { buildSearchHints, pickThumbnailUrl } from "../utils/thumbnail.js";
 import { generateContentWithRetry } from "./ai.js";
 import { fetchAlbumArt, saveAlbumArt } from "./albumArt.js";
+import type { AlbumArtHints } from "./albumArt.js";
 import { CacheManager } from "./cache.js";
 import { fetchLyrics, saveLyrics } from "./lyrics.js";
 import { downloadVideo, getVideoInfo } from "./youtube.js";
@@ -91,39 +93,18 @@ class AlbumArtQueue {
 const albumArtQueue = new AlbumArtQueue();
 
 /**
- * Picks the most useful thumbnail URL from a yt-dlp video payload, if any.
- * @param videoInfo The yt-dlp video metadata.
- * @returns The best thumbnail URL, or undefined when none is available.
- */
-function pickThumbnailUrl(videoInfo: any): string | undefined {
-  const thumbnails = Array.isArray(videoInfo?.thumbnails)
-    ? videoInfo.thumbnails.filter(
-        (thumbnail: any) =>
-          typeof thumbnail?.url === "string" &&
-          thumbnail?.rows === undefined &&
-          thumbnail?.columns === undefined,
-      )
-    : [];
-
-  const largest = thumbnails.sort(
-    (a: any, b: any) =>
-      (b.width ?? 0) * (b.height ?? 0) - (a.width ?? 0) * (a.height ?? 0),
-  )[0];
-
-  return largest?.url ?? videoInfo?.thumbnail;
-}
-
-/**
  * Fetches and saves album art if it doesn't already exist
  * @param artist The artist name
  * @param album The album name
  * @param fallbackImageUrl Optional URL to use when no provider has a match
+ * @param hints Optional source-media context that widens the provider search
  * @returns The path to the album art file, or null if not found/saved
  */
 async function handleAlbumArt(
   artist: string,
   album: string | null,
   fallbackImageUrl?: string,
+  hints?: AlbumArtHints,
 ): Promise<string | null> {
   if (!album || album === "Unknown Album") {
     console.log(
@@ -161,6 +142,7 @@ async function handleAlbumArt(
       console.log(`Album art: Fetching for "${album}" by "${artist}"...`);
       const albumArtResult = await fetchAlbumArt(artist, album, {
         fallbackImageUrl,
+        hints,
       });
 
       if (albumArtResult) {
@@ -308,6 +290,7 @@ export async function processVideo(
           aiVideoData.artist,
           aiVideoData.album,
           pickThumbnailUrl(videoInfo),
+          buildSearchHints(videoInfo, videoUrl),
         ),
         handleLyrics(
           aiVideoData.artist,
@@ -511,6 +494,7 @@ Release Year: ${videoInfo.release_year || "N/A"}
         aiVideoData.artist,
         aiVideoData.album,
         pickThumbnailUrl(videoInfo),
+        buildSearchHints(videoInfo, videoUrl),
       ),
       handleLyrics(
         aiVideoData.artist,

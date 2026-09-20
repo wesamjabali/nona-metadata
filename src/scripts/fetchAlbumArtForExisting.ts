@@ -2,18 +2,61 @@
 
 import { join } from "path";
 import { baseDirectory } from "../config/constants.js";
+import type { AlbumArtHints } from "../services/albumArt.js";
 import { fetchAlbumArt, saveAlbumArt } from "../services/albumArt.js";
 import { JobTracker } from "../services/jobTracker.js";
 import { getFileMetadata } from "../services/metadata.js";
+import { getVideoInfo } from "../services/youtube.js";
 import { listFilesRecursively } from "../utils/directory.js";
 import { findExistingAlbumArt, getAlbumArtPath } from "../utils/file.js";
+import { extractSourceUrl } from "../utils/sourceUrl.js";
+import { buildSearchHints, pickThumbnailUrl } from "../utils/thumbnail.js";
+
+/**
+ * Resolves the album art context for a track from its stored source URL.
+ *
+ * Every processed track records `Source: <url>` in its comment tag, which lets
+ * us (a) widen provider searches with the source video's title/uploader and
+ * (b) fall back to the video thumbnail. Files processed before that tag was
+ * introduced have no URL — that is expected, so a missing URL is not an error.
+ * @param filePath The audio file to inspect.
+ * @returns Source-media hints and/or a fallback image URL.
+ */
+async function resolveSourceContext(filePath: string): Promise<{
+  fallbackImageUrl?: string;
+  hints?: AlbumArtHints;
+}> {
+  const sourceUrl = await extractSourceUrl(filePath);
+
+  if (!sourceUrl) {
+    console.log("ℹ️  No source URL stored in metadata (legacy file)");
+    return {};
+  }
+
+  try {
+    const videoInfo = await getVideoInfo(sourceUrl);
+    const fallbackImageUrl = pickThumbnailUrl(videoInfo);
+    const hints = buildSearchHints(videoInfo, sourceUrl);
+
+    return {
+      ...(fallbackImageUrl ? { fallbackImageUrl } : {}),
+      ...(hints ? { hints } : {}),
+    };
+  } catch (error) {
+    console.warn(
+      `⚠️  Could not fetch info for source URL ${sourceUrl}:`,
+      (error as Error).message,
+    );
+    return {};
+  }
+}
 
 /**
  * Processes all existing music files and fetches album art for those missing it
  */
 async function fetchAlbumArtForExistingFiles(
   jobTracker?: JobTracker,
-  jobId?: string
+  jobId?: string,
 ): Promise<{
   processed: number;
   fetched: number;
@@ -29,7 +72,7 @@ async function fetchAlbumArtForExistingFiles(
         file.endsWith(".m4a") ||
         file.endsWith(".mp3") ||
         file.endsWith(".flac") ||
-        file.endsWith(".wav")
+        file.endsWith(".wav"),
     );
 
     console.log(`📁 Found ${musicFiles.length} music files`);
@@ -72,7 +115,7 @@ async function fetchAlbumArtForExistingFiles(
 
         if (!album || album === "Unknown Album") {
           console.log(
-            `⚠️  No album found in metadata or album is 'Unknown Album', skipping...`
+            `⚠️  No album found in metadata or album is 'Unknown Album', skipping...`,
           );
           processed++;
           continue;
@@ -91,18 +134,23 @@ async function fetchAlbumArtForExistingFiles(
         const existingAlbumArt = await findExistingAlbumArt(albumArtPath);
         if (existingAlbumArt) {
           console.log(`✅ Album art already exists: ${existingAlbumArt}`);
+          albumArtExists++;
           processed++;
           continue;
         }
 
         console.log(`🔍 Fetching album art for "${album}" by "${artist}"...`);
-        const albumArtResult = await fetchAlbumArt(artist, album);
+        const albumArtResult = await fetchAlbumArt(artist, album, {
+          // Resolved lazily: only pays for the yt-dlp source lookup when the
+          // fast providers (iTunes/Deezer) fail to find a confident match.
+          resolveSourceContext: () => resolveSourceContext(fullFilePath),
+        });
 
         if (albumArtResult) {
           const savedPath = await saveAlbumArt(
             albumArtResult.data,
             albumArtResult.contentType,
-            albumArtPath
+            albumArtPath,
           );
           if (savedPath) {
             console.log(`✅ Successfully saved album art to: ${savedPath}`);

@@ -238,7 +238,8 @@ nona-metadata/
 │   │   └── fetchAlbumArtForExisting.ts   # Backfill album art for the whole library
 │   ├── services/
 │   │   ├── ai.ts                # Gemini metadata extraction
-│   │   ├── albumArt.ts          # Cover art lookup (MusicBrainz / Cover Art Archive)
+│   │   ├── albumArt.ts          # Cover art orchestration (score + download)
+│   │   ├── albumArtProviders.ts # Cover art search: iTunes, Deezer, MusicBrainz, Discogs
 │   │   ├── lyrics.ts            # Lyrics lookup (LRCLIB) and .lrc writing
 │   │   ├── videoProcessor.ts    # Download + tag + sidecar orchestration
 │   │   └── cache.ts             # SQLite cache
