@@ -6,6 +6,8 @@
  * tiled grids of tiny frames, so they must never be used as artwork.
  */
 
+import { buildYouTubeThumbnailUrlsFromSourceUrl } from "./youtubeUrl.js";
+
 /** Search hints derived from a source media's metadata. */
 export interface MediaSearchHints {
   /** Title of the source media (e.g. the YouTube video title). */
@@ -14,6 +16,47 @@ export interface MediaSearchHints {
   uploader?: string;
   /** The source URL the hints came from. */
   sourceUrl?: string;
+}
+
+/**
+ * Builds the ordered list of thumbnail URLs to use as album art fallbacks.
+ *
+ * The yt-dlp payload is tried first (it knows the real stills for every
+ * extractor, not just YouTube), then — when the source is a YouTube URL — the
+ * deterministic `i.ytimg.com` variants for the video ID. Those extra URLs cost
+ * nothing and cover the cases where yt-dlp reports no thumbnail, reports a
+ * stale one, or fails entirely.
+ * @param videoInfo The yt-dlp video metadata.
+ * @param sourceUrl The source URL the payload came from, if known.
+ * @returns Thumbnail URLs, best first (possibly empty).
+ */
+export function pickThumbnailUrls(
+  videoInfo: any,
+  sourceUrl?: string,
+): string[] {
+  const urls: string[] = [];
+
+  const fromPayload = pickThumbnailUrl(videoInfo);
+  if (fromPayload) {
+    urls.push(fromPayload);
+  }
+
+  const webpageUrl =
+    sourceUrl ??
+    (typeof videoInfo?.webpage_url === "string"
+      ? videoInfo.webpage_url
+      : undefined) ??
+    (typeof videoInfo?.original_url === "string"
+      ? videoInfo.original_url
+      : undefined);
+
+  for (const url of buildYouTubeThumbnailUrlsFromSourceUrl(webpageUrl)) {
+    if (!urls.includes(url)) {
+      urls.push(url);
+    }
+  }
+
+  return urls;
 }
 
 /**

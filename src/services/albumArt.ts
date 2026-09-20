@@ -10,8 +10,9 @@
  *     stored name differs from the provider's edition name.
  *  3. MusicBrainz / Cover Art Archive + Discogs — free community databases,
  *     weaker on Arabic material, only used when the above fail.
- *  4. The caller-supplied fallback image (typically the source video's
- *     thumbnail) so a folder at least gets *some* artwork.
+ *  4. The caller-supplied fallback image(s) — typically the source video's
+ *     thumbnail, including the deterministic YouTube variants — so a folder at
+ *     least gets *some* artwork.
  *
  * Every provider candidate is scored against the requested artist/album by
  * `utils/musicMatching.ts` before its image is downloaded. Being wrong is worse
@@ -33,6 +34,15 @@ import {
 const USER_AGENT =
   "nona-metadata/1.0.0 (https://github.com/nona-metadata/nona-metadata)";
 
+/**
+ * Smallest acceptable fallback image, in bytes.
+ *
+ * YouTube answers a deleted/unavailable video's `hqdefault.jpg` with a 120x90
+ * grey placeholder (~1.3 KB) instead of a 404. Saving that as `cover.jpg` is
+ * worse than leaving the album without artwork, so tiny images are rejected.
+ */
+const MIN_FALLBACK_IMAGE_BYTES = 2048;
+
 /** Extra context about the source media, used to widen provider searches. */
 export interface AlbumArtHints {
   /** Title of the source media (e.g. the YouTube video title). */
@@ -47,6 +57,12 @@ export interface AlbumArtHints {
 export interface AlbumArtSourceContext {
   /** Image URL to use when no provider has a trustworthy match. */
   fallbackImageUrl?: string;
+  /**
+   * Further fallback images, tried in order after {@link fallbackImageUrl}.
+   * YouTube thumbnail variants belong here: the highest resolution is not
+   * published for every upload, so the next variant has to be attempted.
+   */
+  fallbackImageUrls?: string[];
   /** Extra search context (video title/uploader) to widen provider queries. */
   hints?: AlbumArtHints;
 }
@@ -92,11 +108,17 @@ function getExtensionFromContentType(contentType: string): string {
 /**
  * Downloads an image from an arbitrary URL.
  * @param url The image URL to download.
+ * @param options Optional download guards.
+ * @param options.minBytes Reject images smaller than this, in bytes. Used for
+ * fallback images so placeholder art is never saved as a cover.
  * @returns The image data + content type, or null when it is not an image.
  */
 export async function fetchImageFromUrl(
   url: string,
+  options: { minBytes?: number } = {},
 ): Promise<DownloadedImage | null> {
+  const minBytes = options.minBytes ?? 0;
+
   try {
     const response = await fetch(url, {
       headers: { "User-Agent": USER_AGENT },
@@ -119,6 +141,13 @@ export async function fetchImageFromUrl(
     const data = await response.arrayBuffer();
     if (data.byteLength === 0) {
       console.warn(`Downloaded an empty image: ${url}`);
+      return null;
+    }
+
+    if (data.byteLength < minBytes) {
+      console.warn(
+        `Downloaded an image that is too small to be artwork (${data.byteLength} < ${minBytes} bytes): ${url}`,
+      );
       return null;
     }
 
@@ -237,10 +266,23 @@ async function downloadBestCandidate(
 }
 
 /**
+ * Flattens a source context into the ordered, de-duplicated fallback URL list.
+ * @param context The resolved source-media context.
+ * @returns Fallback image URLs, most preferred first.
+ */
+function collectFallbackImageUrls(context: AlbumArtSourceContext): string[] {
+  const urls = [context.fallbackImageUrl, ...(context.fallbackImageUrls ?? [])];
+
+  return [
+    ...new Set(urls.filter((url): url is string => Boolean(url?.trim()))),
+  ];
+}
+
+/**
  * Fetches album art for a given artist and album.
  * @param artist The artist's name.
  * @param album The album's title.
- * @param options Optional source-media hints and a fallback image URL.
+ * @param options Optional source-media hints and fallback image URLs.
  * @returns The image data + content type, or null if nothing suitable was found.
  */
 export async function fetchAlbumArt(
@@ -290,6 +332,7 @@ export async function fetchAlbumArt(
     } else {
       resolvedContext = {
         fallbackImageUrl: options.fallbackImageUrl,
+        fallbackImageUrls: options.fallbackImageUrls,
         hints: options.hints,
       };
     }
@@ -336,12 +379,29 @@ export async function fetchAlbumArt(
     return secondaryImage;
   }
 
-  // Phase 4: the source video's thumbnail, when the caller provided one.
-  if (sourceContext.fallbackImageUrl) {
+  // Phase 4: the source video's thumbnail. Several URLs may be offered (e.g.
+  // YouTube's maxres/sd/hq variants) because the highest resolution is not
+  // published for every video — the first one that downloads wins.
+  const fallbackUrls = collectFallbackImageUrls(sourceContext);
+  if (fallbackUrls.length > 0) {
     console.log(
-      `Album art: no provider match, using fallback image: ${sourceContext.fallbackImageUrl}`,
+      `Album art: no provider match, trying ${fallbackUrls.length} fallback image(s)...`,
     );
-    return await fetchImageFromUrl(sourceContext.fallbackImageUrl);
+
+    for (const url of fallbackUrls) {
+      const image = await fetchImageFromUrl(url, {
+        minBytes: MIN_FALLBACK_IMAGE_BYTES,
+      });
+
+      if (image) {
+        console.log(`Album art: using fallback image: ${url}`);
+        return image;
+      }
+
+      console.warn(
+        `Album art: fallback image unavailable, trying the next one: ${url}`,
+      );
+    }
   }
 
   console.log(

@@ -11,30 +11,55 @@ export async function extractSourceUrl(
 ): Promise<string | null> {
   try {
     const metadata = await getFileMetadata(filePath);
-    const tags = metadata?.format?.tags || {};
-
-    // Check common comment fields for the source URL
-    const comment = tags.comment || tags.COMMENT || tags.Comment;
-
-    if (comment && typeof comment === "string") {
-      // Look for "Source: " prefix followed by a URL
-      const sourceMatch = comment.match(/Source:\s*(https?:\/\/\S+)/i);
-      if (sourceMatch && sourceMatch[1]) {
-        return cleanUrl(sourceMatch[1]);
-      }
-
-      // Also check for standalone URLs in comments
-      const urlMatch = comment.match(/(https?:\/\/\S+)/i);
-      if (urlMatch && urlMatch[1]) {
-        return cleanUrl(urlMatch[1]);
-      }
-    }
-
-    return null;
+    return extractSourceUrlFromTags(metadata?.format?.tags);
   } catch (error) {
     console.warn(`Failed to extract source URL from ${filePath}:`, error);
     return null;
   }
+}
+
+/**
+ * Extracts the source URL from ffprobe tags.
+ *
+ * Callers that already probed the file (the backfill scripts do, for the
+ * artist/album tags) can use this instead of {@link extractSourceUrl} to avoid
+ * running ffprobe twice per track.
+ * @param tags The ffprobe `format.tags` object, if any.
+ * @returns The source URL if found, null otherwise
+ */
+export function extractSourceUrlFromTags(
+  tags: Record<string, unknown> | null | undefined,
+): string | null {
+  const comment = tags?.comment ?? tags?.COMMENT ?? tags?.Comment;
+  return extractSourceUrlFromComment(
+    typeof comment === "string" ? comment : null,
+  );
+}
+
+/**
+ * Extracts the source URL from a comment tag value.
+ *
+ * Processed tracks store `comment=Source: <url>`, but files tagged by hand or
+ * by other tools often carry a bare URL, so both shapes are accepted.
+ * @param comment The comment tag value, if any.
+ * @returns The source URL if found, null otherwise
+ */
+export function extractSourceUrlFromComment(
+  comment: string | null | undefined,
+): string | null {
+  if (!comment || typeof comment !== "string") {
+    return null;
+  }
+
+  // Look for "Source: " prefix followed by a URL
+  const sourceMatch = comment.match(/Source:\s*(https?:\/\/\S+)/i);
+  if (sourceMatch?.[1]) {
+    return cleanUrl(sourceMatch[1]);
+  }
+
+  // Also check for standalone URLs in comments
+  const urlMatch = comment.match(/(https?:\/\/\S+)/i);
+  return urlMatch?.[1] ? cleanUrl(urlMatch[1]) : null;
 }
 
 /**

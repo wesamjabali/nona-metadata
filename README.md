@@ -202,6 +202,33 @@ bun run src/scripts/fetchLyricsForExisting.ts
 curl -X POST http://localhost:80/fetch-album-art
 ```
 
+You can also run the backfill directly without the server:
+
+```bash
+bun run src/scripts/fetchAlbumArtForExisting.ts
+```
+
+Providers are tried in order of precision and every candidate is scored against
+the requested artist/album before it is downloaded (wrong artwork is worse than
+none):
+
+1. iTunes + Deezer
+2. iTunes + Deezer widened with hints from the source video (title/uploader)
+3. MusicBrainz / Cover Art Archive + Discogs
+4. The source video's thumbnail
+
+The thumbnail fallback reads the `Source: <url>` value the pipeline writes to
+each file's `comment` tag, e.g.
+`Source: https://www.youtube.com/watch?v=YzLEbVnywh0&index=30`. For YouTube
+sources the thumbnail URLs are derived directly from the video ID
+(`maxresdefault` → `sddefault` → `hqdefault`), so a link is all that is needed —
+it even works for removed/private videos, or when yt-dlp cannot reach YouTube.
+Placeholder images that YouTube serves for unavailable videos are rejected
+rather than saved. Files with no source URL (processed before the comment tag
+existed) simply skip the fallback and still get provider artwork.
+
+Artwork is written as a `cover.*` sidecar (e.g. `cover.jpg`) in the album folder.
+
 ### Cache Management
 
 #### Get Cache Statistics

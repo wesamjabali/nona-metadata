@@ -13,7 +13,7 @@ import {
   sanitizeFileName,
 } from "../utils/file.js";
 import { getExistingAlbumGenre } from "../utils/genreUtils.js";
-import { buildSearchHints, pickThumbnailUrl } from "../utils/thumbnail.js";
+import { buildSearchHints, pickThumbnailUrls } from "../utils/thumbnail.js";
 import { generateContentWithRetry } from "./ai.js";
 import type { AlbumArtHints } from "./albumArt.js";
 import { fetchAlbumArt, saveAlbumArt } from "./albumArt.js";
@@ -96,14 +96,14 @@ const albumArtQueue = new AlbumArtQueue();
  * Fetches and saves album art if it doesn't already exist
  * @param artist The artist name
  * @param album The album name
- * @param fallbackImageUrl Optional URL to use when no provider has a match
+ * @param fallbackImageUrls Optional thumbnail URLs to use when no provider has a match
  * @param hints Optional source-media context that widens the provider search
  * @returns The path to the album art file, or null if not found/saved
  */
 async function handleAlbumArt(
   artist: string,
   album: string | null,
-  fallbackImageUrl?: string,
+  fallbackImageUrls?: string[],
   hints?: AlbumArtHints,
 ): Promise<string | null> {
   if (!album || album === "Unknown Album") {
@@ -141,7 +141,7 @@ async function handleAlbumArt(
 
       console.log(`Album art: Fetching for "${album}" by "${artist}"...`);
       const albumArtResult = await fetchAlbumArt(artist, album, {
-        fallbackImageUrl,
+        fallbackImageUrls,
         hints,
       });
 
@@ -289,7 +289,7 @@ export async function processVideo(
         handleAlbumArt(
           aiVideoData.artist,
           aiVideoData.album,
-          pickThumbnailUrl(videoInfo),
+          pickThumbnailUrls(videoInfo, videoUrl),
           buildSearchHints(videoInfo, videoUrl),
         ),
         handleLyrics(
@@ -493,7 +493,7 @@ Release Year: ${videoInfo.release_year || "N/A"}
       handleAlbumArt(
         aiVideoData.artist,
         aiVideoData.album,
-        pickThumbnailUrl(videoInfo),
+        pickThumbnailUrls(videoInfo, videoUrl),
         buildSearchHints(videoInfo, videoUrl),
       ),
       handleLyrics(

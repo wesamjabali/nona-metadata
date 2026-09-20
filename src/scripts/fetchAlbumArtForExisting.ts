@@ -2,51 +2,66 @@
 
 import { join } from "path";
 import { baseDirectory } from "../config/constants.js";
-import type { AlbumArtHints } from "../services/albumArt.js";
+import type { AlbumArtSourceContext } from "../services/albumArt.js";
 import { fetchAlbumArt, saveAlbumArt } from "../services/albumArt.js";
 import { JobTracker } from "../services/jobTracker.js";
 import { getFileMetadata } from "../services/metadata.js";
 import { getVideoInfo } from "../services/youtube.js";
 import { listFilesRecursively } from "../utils/directory.js";
 import { findExistingAlbumArt, getAlbumArtPath } from "../utils/file.js";
-import { extractSourceUrl } from "../utils/sourceUrl.js";
-import { buildSearchHints, pickThumbnailUrl } from "../utils/thumbnail.js";
+import { extractSourceUrlFromTags } from "../utils/sourceUrl.js";
+import { buildSearchHints, pickThumbnailUrls } from "../utils/thumbnail.js";
+import { buildYouTubeThumbnailUrlsFromSourceUrl } from "../utils/youtubeUrl.js";
 
 /**
  * Resolves the album art context for a track from its stored source URL.
  *
- * Every processed track records `Source: <url>` in its comment tag, which lets
- * us (a) widen provider searches with the source video's title/uploader and
+ * Processed tracks record `Source: <url>` in their comment tag, which lets us
+ * (a) widen provider searches with the source video's title/uploader and
  * (b) fall back to the video thumbnail. Files processed before that tag was
  * introduced have no URL — that is expected, so a missing URL is not an error.
- * @param filePath The audio file to inspect.
- * @returns Source-media hints and/or a fallback image URL.
+ *
+ * For a YouTube source the thumbnail URLs are derived straight from the video
+ * ID in the comment, so artwork is still available when yt-dlp cannot reach the
+ * video (removed/private uploads, rate limiting, a broken extractor). yt-dlp is
+ * used to *enrich* that: it supplies real search hints and, where available, its
+ * own highest-resolution still.
+ * @param sourceUrl The source URL read from the file's comment tag, if any.
+ * @returns Fallback image URLs (best first) and optional search hints.
  */
-async function resolveSourceContext(filePath: string): Promise<{
-  fallbackImageUrl?: string;
-  hints?: AlbumArtHints;
-}> {
-  const sourceUrl = await extractSourceUrl(filePath);
-
+async function resolveSourceContext(
+  sourceUrl: string | null,
+): Promise<AlbumArtSourceContext> {
   if (!sourceUrl) {
     console.log("ℹ️  No source URL stored in metadata (legacy file)");
     return {};
   }
 
+  console.log(`🔗 Source URL: ${sourceUrl}`);
+
   try {
     const videoInfo = await getVideoInfo(sourceUrl);
-    const fallbackImageUrl = pickThumbnailUrl(videoInfo);
-    const hints = buildSearchHints(videoInfo, sourceUrl);
 
     return {
-      ...(fallbackImageUrl ? { fallbackImageUrl } : {}),
-      ...(hints ? { hints } : {}),
+      fallbackImageUrls: pickThumbnailUrls(videoInfo, sourceUrl),
+      hints: buildSearchHints(videoInfo, sourceUrl),
     };
   } catch (error) {
     console.warn(
       `⚠️  Could not fetch info for source URL ${sourceUrl}:`,
       (error as Error).message,
     );
+
+    const youtubeThumbnailUrls =
+      buildYouTubeThumbnailUrlsFromSourceUrl(sourceUrl);
+
+    if (youtubeThumbnailUrls.length > 0) {
+      console.log(
+        "↩️  Falling back to the YouTube thumbnail URLs built from the video id",
+      );
+      return { fallbackImageUrls: youtubeThumbnailUrls };
+    }
+
     return {};
   }
 }
@@ -103,6 +118,11 @@ async function fetchAlbumArtForExistingFiles(
         const format = metadata.format;
         const tags = format.tags || {};
 
+        // The source URL lives in the comment tag (`Source: <url>`). It is read
+        // from the tags already in hand so the fallback thumbnail is known
+        // without probing the file (or the network) a second time.
+        const sourceUrl = extractSourceUrlFromTags(tags);
+
         const artist =
           tags.artist || tags.ARTIST || tags.albumartist || tags.ALBUMARTIST;
         const album = tags.album || tags.ALBUM;
@@ -142,8 +162,9 @@ async function fetchAlbumArtForExistingFiles(
         console.log(`🔍 Fetching album art for "${album}" by "${artist}"...`);
         const albumArtResult = await fetchAlbumArt(artist, album, {
           // Resolved lazily: only pays for the yt-dlp source lookup when the
-          // fast providers (iTunes/Deezer) fail to find a confident match.
-          resolveSourceContext: () => resolveSourceContext(fullFilePath),
+          // fast providers (iTunes/Deezer) fail to find a confident match. The
+          // YouTube thumbnail fallback itself needs no network lookup.
+          resolveSourceContext: () => resolveSourceContext(sourceUrl),
         });
 
         if (albumArtResult) {
