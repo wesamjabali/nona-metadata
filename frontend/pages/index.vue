@@ -12,6 +12,7 @@
             </label>
             <InputText
               id="youtube-url"
+              ref="youtubeUrlInput"
               v-model="youtubeUrl"
               type="url"
               placeholder="https://soundcloud.com/... or any media URL"
@@ -538,6 +539,7 @@ const handleFetchLyrics = async () => {
 };
 
 const youtubeUrl = ref("");
+const youtubeUrlInput = ref(null);
 const isProcessing = ref(false);
 const submitResult = ref(null);
 const config = useRuntimeConfig();
@@ -1056,6 +1058,7 @@ const refreshFiles = () => {
 };
 
 onMounted(() => {
+  youtubeUrlInput.value?.$el?.focus();
   fetchFiles();
 });
 
