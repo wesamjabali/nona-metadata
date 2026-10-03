@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import difflib
+import http.client
 import json
 import math
 import os
@@ -114,30 +115,48 @@ class NonaError(RuntimeError):
 # HTTP client
 # --------------------------------------------------------------------------- #
 def _request(method: str, path: str, body=None, params=None, base_url=None,
-             timeout=HTTP_TIMEOUT):
+             timeout=HTTP_TIMEOUT, retries: int = 3):
     url = (base_url or DEFAULT_BASE_URL).rstrip("/") + path
     if params:
         url += "?" + urllib.parse.urlencode(params)
     data = json.dumps(body).encode("utf-8") if body is not None else None
-    req = urllib.request.Request(url, data=data, method=method)
-    # Nona serves the SPA on /jobs unless the client asks for JSON.
-    req.add_header("Accept", "application/json")
-    if data is not None:
-        req.add_header("Content-Type", "application/json")
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            raw = resp.read().decode("utf-8", "replace")
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", "replace")[:400]
-        raise NonaError(f"{method} {path} -> HTTP {exc.code}: {detail}") from None
-    except urllib.error.URLError as exc:
-        raise NonaError(f"{method} {path} -> {exc.reason}") from None
-    if not raw.strip():
-        return {}
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        raise NonaError(f"{method} {path} -> non-JSON response: {raw[:200]}") from None
+
+    last_error = None
+    for attempt in range(max(1, retries)):
+        req = urllib.request.Request(url, data=data, method=method)
+        # Nona serves the SPA on /jobs unless the client asks for JSON.
+        req.add_header("Accept", "application/json")
+        if data is not None:
+            req.add_header("Content-Type", "application/json")
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                raw = resp.read().decode("utf-8", "replace")
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace")[:400]
+            message = f"{method} {path} -> HTTP {exc.code}: {detail}"
+            # 5xx is worth another go; 4xx is our mistake and never will be.
+            if exc.code < 500:
+                raise NonaError(message) from None
+            last_error = NonaError(message)
+        except (urllib.error.URLError, http.client.HTTPException,
+                ConnectionError, TimeoutError) as exc:
+            # A dropped connection under load is not a reason to abandon a
+            # 20-song batch. `RemoteDisconnected` lands here, and it used to
+            # take the whole run down with it.
+            last_error = NonaError(f"{method} {path} -> {exc!r}")
+        else:
+            if not raw.strip():
+                return {}
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError:
+                raise NonaError(
+                    f"{method} {path} -> non-JSON response: {raw[:200]}"
+                ) from None
+        if attempt < retries - 1:
+            time.sleep(min(2 ** attempt, 8))
+
+    raise last_error if last_error else NonaError(f"{method} {path} -> request failed")
 
 
 def api_get(path, params=None, **kw):
@@ -697,7 +716,7 @@ def add_many(queries, source: str = "auto", skip_existing: bool = True,
                 job = add_url(resolved["url"], base_url=base_url)
                 row.update({"status": "submitted", "jobId": job.get("jobId")})
                 submitted.append(row)
-            except NonaError as exc:
+            except Exception as exc:  # one bad song must not kill the batch
                 row.update({"status": "error", "error": str(exc)})
                 emit(row)
 
@@ -712,7 +731,7 @@ def add_many(queries, source: str = "auto", skip_existing: bool = True,
                 row["status"] = (result.get("status") or "unknown").lower()
                 row["result"] = result.get("results") or []
                 row["errors"] = result.get("errors") or []
-            except NonaError as exc:
+            except Exception as exc:  # a dropped poll must not lose the batch
                 row.update({"status": "timeout", "error": str(exc)})
             emit(row)
 
