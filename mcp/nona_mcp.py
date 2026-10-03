@@ -86,7 +86,7 @@ CHANNEL_NOISE = {"topic", "vevo", "official"}
 # A "<Artist> - Topic" channel is assembled by YouTube from the label's own
 # release, so it is the most reliable "this is the studio recording" signal there
 # is — worth more than any title keyword.
-TOPIC_BONUS = 4.0
+TOPIC_BONUS = 6.0
 
 # Rough Arabic -> Latin letters, used only to compare names written in different
 # scripts ("سناء موسى" vs "Sanaa Moussa"). Not a linguistically correct
@@ -105,6 +105,21 @@ SOURCE_BONUS = {"youtube": 1.5, "soundcloud": 0.0, "bandcamp": 0.0}
 # Prefer full songs over shorts/clips; seconds.
 DURATION_IDEAL = (60, 600)
 DURATION_OK = (30, 1800)
+
+# Some artists' canonical recordings are long live performances — Oum Kalthoum's
+# famous takes run 30-60 minutes, so the short studio edit is the *wrong* answer
+# and the length is the whole point. A "full" request inverts the duration
+# preference instead of fighting it.
+FULL_MIN_SECONDS = 1200  # 20 minutes: the bar for "a full version"
+CONCERT_SECONDS = 5400   # 90 minutes: that is many songs, not one
+SHORT_WORDS = (
+    "part 1", "part 2", "part 3", "part one", "part two", "excerpt", "clip",
+    "short version", "radio edit", "teaser", "مقطع", "جزء", "مختصر",
+)
+FULL_WORDS = (
+    "complete", "full version", "full song", "كاملة", "كامله", "الكاملة",
+    "full", "live at", "حفلة كاملة",
+)
 
 STOPWORDS = {
     "the", "a", "an", "and", "by", "of", "for", "feat", "ft", "with",
@@ -375,12 +390,16 @@ def _is_artist_channel(uploader: str, query: str) -> bool:
     )
 
 
-def score_candidate(candidate: dict, query: str) -> float:
+def score_candidate(candidate: dict, query: str, version: str = "studio") -> float:
     """Rank a search hit against the requested song name.
 
     Deliberately rewards precision as well as recall: a title that contains every
     requested word *and nothing else* is the recording itself, whereas one that
     contains the words plus four others is somebody's cover, reaction or medley.
+
+    `version` is "studio" (prefer the released recording, penalise live takes) or
+    "full" (prefer the long version, as for Oum Kalthoum where the canonical
+    recording *is* the 40-minute concert take).
     """
     title = candidate.get("title") or ""
     uploader = candidate.get("uploader") or ""
@@ -412,22 +431,51 @@ def score_candidate(candidate: dict, query: str) -> float:
 
     lowered = title.lower()
     asked = query.lower()
-    for word in NOISE_WORDS:
-        if _phrase_present(lowered, word) and not _phrase_present(asked, word):
-            score -= 3.0
-    for word in LIVE_WORDS:
-        if _phrase_present(lowered, word) and not _phrase_present(asked, word):
-            score -= 4.5
-    for word in STUDIO_WORDS:
-        if _phrase_present(lowered, word):
-            score += 2.0
-
     duration = candidate.get("duration")
-    if duration:
-        if DURATION_IDEAL[0] <= duration <= DURATION_IDEAL[1]:
-            score += 2.0
-        elif not (DURATION_OK[0] <= duration <= DURATION_OK[1]):
-            score -= 2.0
+
+    if version == "full":
+        if duration is None:
+            # "Full" is a decision about length. An entry whose length we cannot
+            # read cannot be confirmed as the long version, so it must not win by
+            # default over one that can.
+            score -= 1.5
+        if duration:
+            if duration >= FULL_MIN_SECONDS:
+                score += 4.0          # exactly what was asked for
+            elif duration >= 900:
+                score += 2.5
+            elif duration >= 600:
+                score += 1.0
+            elif duration < 300:
+                score -= 4.0          # a clip, not the song
+            if duration > CONCERT_SECONDS:
+                score -= 3.0          # a whole concert, not one song
+        for word in SHORT_WORDS:
+            if _phrase_present(lowered, word) and not _phrase_present(asked, word):
+                score -= 3.0
+        for word in FULL_WORDS:
+            if _phrase_present(lowered, word):
+                score += 2.0
+        # These artists' canonical takes are live, so being live is not a fault —
+        # but a two-hour concert recording is still the wrong thing to pick.
+        for word in LIVE_WORDS:
+            if _phrase_present(lowered, word) and not _phrase_present(asked, word):
+                score -= 1.5
+    else:
+        for word in NOISE_WORDS:
+            if _phrase_present(lowered, word) and not _phrase_present(asked, word):
+                score -= 3.0
+        for word in LIVE_WORDS:
+            if _phrase_present(lowered, word) and not _phrase_present(asked, word):
+                score -= 4.5
+        for word in STUDIO_WORDS:
+            if _phrase_present(lowered, word):
+                score += 2.0
+        if duration:
+            if DURATION_IDEAL[0] <= duration <= DURATION_IDEAL[1]:
+                score += 2.0
+            elif not (DURATION_OK[0] <= duration <= DURATION_OK[1]):
+                score -= 2.0
 
     # Popularity separates equally-named uploads; sqrt keeps the top of the range
     # discriminating instead of flattening every million-view video together.
@@ -479,8 +527,10 @@ def probe_url(url: str, ytdlp: str = YTDLP, timeout: int = 120) -> dict:
 
 
 def resolve(query: str, source: str = "auto", limit: int = 6, ytdlp: str = YTDLP,
-            verify: bool = True) -> dict:
+            verify: bool = True, version: str = "studio") -> dict:
     """Turn a song name (or URL) into a Nona-processable link.
+
+    `version` is "studio" or "full" — see `score_candidate`.
 
     Returns a resolved dict including `alternatives`, the ranked candidates that
     were considered, so a caller can offer choices if the pick looks wrong.
@@ -503,7 +553,7 @@ def resolve(query: str, source: str = "auto", limit: int = 6, ytdlp: str = YTDLP
             errors.append(str(exc))
             continue
         for hit in hits:
-            hit["score"] = score_candidate(hit, query)
+            hit["score"] = score_candidate(hit, query, version)
         ranked.extend(sorted(hits, key=lambda h: h["score"], reverse=True))
 
     if not ranked:
@@ -580,12 +630,13 @@ def wait_for_job(job_id: str, timeout: float = 900, interval: float = 3.0,
 
 def add_music(query: str, source: str = "auto", wait: bool = True,
               timeout: float = 900, base_url=None, ytdlp: str = YTDLP,
-              verify: bool = True) -> dict:
+              verify: bool = True, version: str = "studio") -> dict:
     """Resolve a song name (or URL) and have Nona download + tag it.
 
     Returns {"resolved": ..., "job": ..., "result": ...}.
     """
-    resolved = resolve(query, source=source, ytdlp=ytdlp, verify=verify)
+    resolved = resolve(query, source=source, ytdlp=ytdlp, verify=verify,
+                       version=version)
     job = add_url(resolved["url"], base_url=base_url)
     job_id = job.get("jobId")
     out = {"resolved": resolved, "job": job, "result": None}
@@ -670,8 +721,8 @@ def match_in_library(query: str, index: list[dict], threshold: float = 0.8):
 
 def add_many(queries, source: str = "auto", skip_existing: bool = True,
              dry_run: bool = False, batch_size: int = 2, timeout: float = 900,
-             limit: int | None = None, wait: bool = True, base_url=None,
-             ytdlp: str = YTDLP, progress=None) -> dict:
+             limit: int | None = None, wait: bool = True, version: str = "studio",
+             base_url=None, ytdlp: str = YTDLP, progress=None) -> dict:
     """Resolve many song names and hand each to Nona.
 
     Skips anything already in the library (matched on artist/track names) and
@@ -709,7 +760,8 @@ def add_many(queries, source: str = "auto", skip_existing: bool = True,
                         })
                         emit(row)
                         continue
-                resolved = resolve(query, source=source, ytdlp=ytdlp)
+                resolved = resolve(query, source=source, ytdlp=ytdlp,
+                                   version=version)
                 row.update({
                     "url": resolved["url"],
                     "video": resolved.get("title"),
@@ -832,13 +884,16 @@ def build_mcp_server():
     mcp = FastMCP("nona")
 
     @mcp.tool()
-    def music_search(query: str, source: str = "youtube", limit: int = 6) -> str:
+    def music_search(query: str, source: str = "youtube", limit: int = 6,
+                     version: str = "studio") -> str:
         """Search YouTube/SoundCloud for a song and rank candidate links.
 
         Args:
             query: Song name, e.g. "Shadi by Fairuz".
             source: "youtube", "soundcloud", or "auto".
             limit: Max results per source.
+            version: "studio" for the released recording, "full" for the long
+                version (Oum Kalthoum's 40-minute concert takes, and the like).
         """
         if source == "auto":
             rows = []
@@ -847,13 +902,13 @@ def build_mcp_server():
         else:
             rows = yt_search(query, source=source, limit=limit)
         for row in rows:
-            row["score"] = score_candidate(row, query)
+            row["score"] = score_candidate(row, query, version)
         rows.sort(key=lambda r: r["score"], reverse=True)
         return json.dumps(rows, ensure_ascii=False, indent=2)
 
     @mcp.tool()
     def music_add(query: str, source: str = "auto", wait: bool = True,
-                  timeout_seconds: int = 900) -> str:
+                  timeout_seconds: int = 900, version: str = "studio") -> str:
         """Download and add a song to the Nona library by name or URL.
 
         Resolves the name to a verified-downloadable link, asks Nona to process
@@ -864,15 +919,18 @@ def build_mcp_server():
             source: "auto", "youtube", or "soundcloud".
             wait: Block until the job reaches a terminal status.
             timeout_seconds: Max wait when wait=True.
+            version: "studio" for the released recording, "full" for the long
+                version (Oum Kalthoum's concert takes run 30-60 minutes).
         """
         payload = add_music(query, source=source, wait=wait,
-                            timeout=float(timeout_seconds))
+                            timeout=float(timeout_seconds), version=version)
         return format_result(payload) + "\n\n" + json.dumps(payload, ensure_ascii=False)
 
     @mcp.tool()
     def music_add_many(queries: list[str], skip_existing: bool = True,
                        dry_run: bool = False, batch_size: int = 2,
-                       wait: bool = True, timeout_seconds: int = 900) -> str:
+                       wait: bool = True, timeout_seconds: int = 900,
+                       version: str = "studio") -> str:
         """Download and add MANY songs by name in one go.
 
         Use this for requests like "find 20 classic Palestinian songs I don't
@@ -888,10 +946,12 @@ def build_mcp_server():
             wait: Block until every job finishes. Set False for long lists and
                   poll with music_jobs instead — a 20-song run can outlast one call.
             timeout_seconds: Max wait per job when wait=True.
+            version: "studio" for released recordings, "full" for long versions.
         """
         payload = add_many(
             queries, skip_existing=skip_existing, dry_run=dry_run,
             batch_size=batch_size, wait=wait, timeout=float(timeout_seconds),
+            version=version,
         )
         return format_many(payload)
 
@@ -922,6 +982,11 @@ def build_mcp_server():
 # --------------------------------------------------------------------------- #
 # CLI
 # --------------------------------------------------------------------------- #
+def _version(args) -> str:
+    """CLI --full maps to the resolver's "full" version preference."""
+    return "full" if getattr(args, "full", False) else "studio"
+
+
 def _print(obj):
     print(json.dumps(obj, ensure_ascii=False, indent=2))
 
@@ -935,6 +1000,9 @@ def main(argv=None) -> int:
     p.add_argument("--source", default="auto",
                    choices=["auto", "youtube", "soundcloud"])
     p.add_argument("--limit", type=int, default=6)
+    p.add_argument("--full", action="store_true",
+                   help="prefer the long/full version (Oum Kalthoum concert takes)")
+
 
     p = sub.add_parser("add", help="resolve a song name or URL and download it")
     p.add_argument("query")
@@ -944,6 +1012,9 @@ def main(argv=None) -> int:
     p.add_argument("--no-wait", action="store_true")
     p.add_argument("--no-verify", action="store_true",
                    help="skip the pre-flight downloadability check")
+    p.add_argument("--full", action="store_true",
+                   help="prefer the long/full version (Oum Kalthoum concert takes)")
+
 
     p = sub.add_parser("add-many",
                        help="add a list of songs, skipping ones already in the library")
@@ -962,6 +1033,9 @@ def main(argv=None) -> int:
     p.add_argument("--no-wait", action="store_true",
                    help="submit and return job ids immediately")
     p.add_argument("--json", action="store_true", help="machine-readable output")
+    p.add_argument("--full", action="store_true",
+                   help="prefer the long/full version (Oum Kalthoum concert takes)")
+
 
     p = sub.add_parser("existing",
                        help="list what the library already has (artist/track)")
@@ -970,6 +1044,9 @@ def main(argv=None) -> int:
     p.add_argument("query")
     p.add_argument("--source", default="auto",
                    choices=["auto", "youtube", "soundcloud"])
+    p.add_argument("--full", action="store_true",
+                   help="prefer the long/full version (Oum Kalthoum concert takes)")
+
 
     p = sub.add_parser("jobs", help="list recent jobs")
     p.add_argument("--limit", type=int, default=20)
@@ -998,15 +1075,17 @@ def main(argv=None) -> int:
             else:
                 rows = yt_search(args.query, source=args.source, limit=args.limit)
             for row in rows:
-                row["score"] = score_candidate(row, args.query)
+                row["score"] = score_candidate(row, args.query, _version(args))
             rows.sort(key=lambda r: r["score"], reverse=True)
             _print(rows)
         elif args.cmd == "resolve":
-            _print(resolve(args.query, source=args.source))
+            _print(resolve(args.query, source=args.source,
+                           version=_version(args)))
         elif args.cmd == "add":
             payload = add_music(
                 args.query, source=args.source, wait=not args.no_wait,
                 timeout=args.timeout, verify=not args.no_verify,
+                version=_version(args),
             )
             print(format_result(payload))
             if not payload.get("result"):
@@ -1034,6 +1113,7 @@ def main(argv=None) -> int:
                 queries, source=args.source, skip_existing=not args.force,
                 dry_run=args.dry_run, batch_size=args.batch_size,
                 timeout=args.timeout, limit=args.limit, wait=not args.no_wait,
+                version=_version(args),
                 progress=None if args.json else _progress,
             )
             if args.json:

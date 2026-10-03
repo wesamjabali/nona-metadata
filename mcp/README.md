@@ -83,6 +83,31 @@ The *choosing* of songs is a judgement call and belongs to the caller; this
 command makes the mechanical part (resolve, dedupe, verify, submit, wait)
 idempotent and inspectable.
 
+## Studio vs full versions
+
+Two legitimate preferences that pull in opposite directions, so it is a flag
+rather than a fixed rule:
+
+```bash
+nona add "Shadi by Fairuz"                      # default: the released recording
+nona add "أم كلثوم أمل حياتي" --full            # the long version
+nona add-many --file umm-kulthum.txt --full --source youtube
+```
+
+- **`studio` (default)** — penalises live/concert/session takes, rewards
+  `Album/Topic` uploads and audio markers, prefers a normal song length. Right
+  for almost everything.
+- **`full`** — inverts the length preference (20+ minutes is the goal, under 5
+  minutes is a clip), stops treating "live" as a fault, rewards `complete` /
+  `كاملة`, and penalises `part 1` / `excerpt` / `مقطع`. It also refuses to
+  accept an entry whose duration it cannot read, because "full" is a claim about
+  length that an unknown length cannot support.
+
+`full` exists because some artists' canonical recordings *are* long live
+performances: Oum Kalthoum's famous takes run 30-60 minutes and the short edit
+is the wrong answer. Pair it with `--source youtube`, where the complete official
+uploads are and where durations are reliably reported.
+
 ## MCP tools
 
 `python nona_mcp.py serve` exposes:
