@@ -126,6 +126,20 @@ Make sure you have the following installed:
 
 ## 💡 Usage Examples
 
+### Add a Song by Name (CLI or MCP)
+
+The API takes a URL. If you only have a song title, the client in
+[`mcp/`](mcp/README.md) resolves it to a link that is verified downloadable
+before Nona processes it, and can also expose the same thing as MCP tools:
+
+```bash
+python mcp/nona_mcp.py add "Shadi by Fairuz"    # or: nona add "..."
+# -> Link   : https://www.youtube.com/watch?v=oXlxnK849t0
+#    Job    : job_1791016770831_gz1rgw0p1 (single)
+#    Status : completed
+#    Track  : Fairuz — Shady [Habbaitak Be El Saif]
+```
+
 ### Download a Single Video
 
 ```bash
@@ -250,6 +264,9 @@ curl -X POST http://localhost:80/cache/cleanup \
 ```
 nona-metadata/
 ├── frontend/                    # Nuxt web interface
+├── mcp/
+│   ├── nona_mcp.py              # Song-name -> URL client, CLI and MCP server
+│   └── README.md
 ├── shared/
 │   └── types.ts                 # Types shared by frontend and backend
 ├── src/

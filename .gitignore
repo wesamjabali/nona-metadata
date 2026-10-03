@@ -34,6 +34,12 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .cache
 *.tsbuildinfo
 
+# python (mcp/ client)
+__pycache__/
+*.py[cod]
+.venv
+venv
+
 # IntelliJ based IDEs
 .idea
 
