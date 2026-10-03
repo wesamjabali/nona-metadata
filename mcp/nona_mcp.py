@@ -60,8 +60,26 @@ NOISE_WORDS = (
     "da3", "dabke", "bootleg", "edit", "vip mix", "flip", "rework",
     "audition", "the voice", "x factor", "arab idol", "tribute", "impersonat",
 )
+# A performance captured in front of people, or a re-recording, is not the
+# release. Penalised harder than the generic noise above: a live take is
+# *almost* right, which makes it the most annoying kind of wrong.
+LIVE_WORDS = (
+    "live", "concert", "festival", "unplugged", "acoustic", "session",
+    "on tour", "in concert", "at the", "mtv", "nobel", "coke studio",
+    "orchestra", "symphony", "audience", "soundcheck", "rehearsal",
+    "soundtrack", "remake", "revisited", "anniversary edition",
+)
+# Markers of the released recording, when the uploader bothered to say so.
+STUDIO_WORDS = (
+    "audio", "album version", "studio version", "original version",
+    "original recording", "full song", "official",
+)
 # Words YouTube appends to auto-generated artist channels ("Fairuz - Topic").
 CHANNEL_NOISE = {"topic", "vevo", "official"}
+# A "<Artist> - Topic" channel is assembled by YouTube from the label's own
+# release, so it is the most reliable "this is the studio recording" signal there
+# is — worth more than any title keyword.
+TOPIC_BONUS = 4.0
 
 # Rough Arabic -> Latin letters, used only to compare names written in different
 # scripts ("سناء موسى" vs "Sanaa Moussa"). Not a linguistically correct
@@ -185,6 +203,19 @@ def _latin_tokens(tokens: list[str]) -> list[str]:
     return [t for t in tokens if re.search(r"[a-z]", t)]
 
 
+def _phrase_present(haystack: str, phrase: str) -> bool:
+    """Word-boundary containment, so "live" does not match "olive"."""
+    return (
+        re.search(rf"(?<![0-9a-z]){re.escape(phrase)}(?![0-9a-z])", haystack.lower())
+        is not None
+    )
+
+
+def _is_topic_channel(uploader: str) -> bool:
+    """True for YouTube's auto-generated "<Artist> - Topic" channels."""
+    return _phrase_present(uploader or "", "topic")
+
+
 def _similar(a: str, b: str, threshold: float = 0.8) -> bool:
     """Fuzzy token equality across spellings and scripts.
 
@@ -208,8 +239,32 @@ def _match_key(token: str) -> str:
     """Reduce a token to a spelling-insensitive, script-insensitive key."""
     if re.search(r"[\u0600-\u06FF]", token):
         token = _transliterate_arabic(token)
-    # Collapse doubled letters so "Moussa" == "Mousa" and "Sanaa" == "Sana".
+    # Collapse doubled letters so "Moussa" == "Mousa" and "Sanaa" == "Sana",
+    # and fold y to i so "Shady" == "Shadi" and "ya" == "يا".
+    token = token.replace("y", "i")
     return re.sub(r"(.)\1+", r"\1", token)
+
+
+def _same_name(a: str, b: str, threshold: float = 0.85) -> bool:
+    """Strict name equality, for deciding "do I already have this song?".
+
+    Deliberately much stricter than `_similar`, which is tuned for spotting a
+    song name inside a noisy video title. Here a false match silently drops a
+    song the user asked for, so a short token may never match a long one
+    ("ana" must not match "alruzana") and merely-similar mid-length names
+    ("ghzali" vs "ghalia") must not match either. A false miss only costs a
+    duplicate, which is recoverable.
+    """
+    key_a, key_b = _match_key(a), _match_key(b)
+    if key_a == key_b:
+        return True
+    if min(len(key_a), len(key_b)) < 3:
+        return False
+    if min(len(key_a), len(key_b)) / max(len(key_a), len(key_b)) < 0.7:
+        return False
+    if key_a in key_b or key_b in key_a:
+        return True
+    return difflib.SequenceMatcher(None, key_a, key_b).ratio() >= threshold
 
 
 def _transliterate_arabic(text: str) -> str:
@@ -327,10 +382,20 @@ def score_candidate(candidate: dict, query: str) -> float:
     if _is_artist_channel(uploader, query):
         score += 6.0
 
+    if _is_topic_channel(uploader):
+        score += TOPIC_BONUS
+
     lowered = title.lower()
+    asked = query.lower()
     for word in NOISE_WORDS:
-        if word in lowered and word not in query.lower():
+        if _phrase_present(lowered, word) and not _phrase_present(asked, word):
             score -= 3.0
+    for word in LIVE_WORDS:
+        if _phrase_present(lowered, word) and not _phrase_present(asked, word):
+            score -= 4.5
+    for word in STUDIO_WORDS:
+        if _phrase_present(lowered, word):
+            score += 2.0
 
     duration = candidate.get("duration")
     if duration:
@@ -524,6 +589,172 @@ def library_stats(base_url=None) -> dict:
     }
 
 
+# --------------------------------------------------------------------------- #
+# Bulk: resolve a list of songs, skip what is already filed, process the rest
+# --------------------------------------------------------------------------- #
+AUDIO_EXTENSIONS = (".m4a", ".mp3", ".flac", ".ogg", ".opus", ".wav", ".aac")
+
+
+def build_library_index(base_url=None) -> list[dict]:
+    """Every audio file already filed, with tokens for fuzzy matching."""
+    data = api_get("/files", base_url=base_url)
+    index = []
+    for path in data.get("files", []):
+        if not path.lower().endswith(AUDIO_EXTENSIONS):
+            continue
+        parts = path.split("/")
+        track = parts[-1].rsplit(".", 1)[0]
+        artist = parts[0] if len(parts) >= 3 else ""
+        # Album folders add noise ("Unknown Album"), so match on artist + track.
+        index.append({
+            "path": path,
+            "artist": artist,
+            "track": track,
+            "tokens": set(_tokens(track)) | set(_tokens(artist)),
+        })
+    return index
+
+
+def match_in_library(query: str, index: list[dict], threshold: float = 0.8):
+    """Closest already-filed track for a request, if it is a confident match.
+
+    Returns (entry | None, coverage). Coverage is the share of the request's
+    words found in the file's artist/track names, so "Shadi by Fairuz" matches
+    "Fairuz/Habbaitak Be El Saif/Shady.m4a" completely and a different Fairuz
+    song only partially.
+
+    One- and two-letter words are ignored ("Li Beirut" vs a filed "Le Beirut"):
+    they are articles/prepositions that differ between transliterations, and
+    keeping them would make the same song look like a different one.
+    """
+    q_tokens = [t for t in _tokens(query) if len(t) > 2] or _tokens(query)
+    if not q_tokens:
+        return None, 0.0
+    best, best_coverage = None, 0.0
+    for entry in index:
+        matched = sum(
+            1 for tok in q_tokens if any(_same_name(tok, x) for x in entry["tokens"])
+        )
+        coverage = matched / len(q_tokens)
+        if coverage > best_coverage:
+            best, best_coverage = entry, coverage
+    if best_coverage >= threshold:
+        return best, best_coverage
+    return None, best_coverage
+
+
+def add_many(queries, source: str = "auto", skip_existing: bool = True,
+             dry_run: bool = False, batch_size: int = 3, timeout: float = 900,
+             limit: int | None = None, wait: bool = True, base_url=None,
+             ytdlp: str = YTDLP, progress=None) -> dict:
+    """Resolve many song names and hand each to Nona.
+
+    Skips anything already in the library (matched on artist/track names) and
+    processes the rest in small batches, so a long list does not open twenty
+    simultaneous downloads on the server.
+
+    Set `wait=False` for long lists: jobs are submitted and their ids returned
+    immediately, to be polled later (a 20-song run can outlast one call).
+
+    `progress` is called with each finished row as it lands, for live reporting.
+    """
+    queries = [q.strip() for q in queries if q and q.strip()]
+    if limit:
+        queries = queries[:limit]
+    index = build_library_index(base_url=base_url) if skip_existing else []
+    rows: list[dict] = []
+
+    def emit(row):
+        rows.append(row)
+        if progress:
+            progress(row)
+
+    for start in range(0, len(queries), max(1, batch_size)):
+        submitted = []
+        for query in queries[start:start + max(1, batch_size)]:
+            row = {"query": query}
+            try:
+                if skip_existing:
+                    existing, coverage = match_in_library(query, index)
+                    if existing:
+                        row.update({
+                            "status": "already_in_library",
+                            "existing": existing["path"],
+                            "match": round(coverage, 2),
+                        })
+                        emit(row)
+                        continue
+                resolved = resolve(query, source=source, ytdlp=ytdlp)
+                row.update({
+                    "url": resolved["url"],
+                    "video": resolved.get("title"),
+                    "channel": resolved.get("uploader"),
+                })
+                if dry_run:
+                    row["status"] = "planned"
+                    emit(row)
+                    continue
+                job = add_url(resolved["url"], base_url=base_url)
+                row.update({"status": "submitted", "jobId": job.get("jobId")})
+                submitted.append(row)
+            except NonaError as exc:
+                row.update({"status": "error", "error": str(exc)})
+                emit(row)
+
+        # Wait for this batch before opening the next one.
+        for row in submitted:
+            if not wait:
+                row["status"] = "submitted"
+                emit(row)
+                continue
+            try:
+                result = wait_for_job(row["jobId"], timeout=timeout, base_url=base_url)
+                row["status"] = (result.get("status") or "unknown").lower()
+                row["result"] = result.get("results") or []
+                row["errors"] = result.get("errors") or []
+            except NonaError as exc:
+                row.update({"status": "timeout", "error": str(exc)})
+            emit(row)
+
+    summary = {
+        "requested": len(queries),
+        "added": sum(1 for r in rows if r.get("status") in ("completed", "completed_with_errors")),
+        "skipped": sum(1 for r in rows if r.get("status") == "already_in_library"),
+        "planned": sum(1 for r in rows if r.get("status") == "planned"),
+        "submitted": sum(1 for r in rows if r.get("status") == "submitted"),
+        "failed": sum(1 for r in rows if r.get("status") in
+                      ("error", "failed", "timeout")),
+    }
+    return {"summary": summary, "rows": rows}
+
+
+def format_many(payload: dict) -> str:
+    """Compact report for add_many()."""
+    lines = []
+    for row in payload["rows"]:
+        status = row.get("status", "?")
+        if status == "already_in_library":
+            lines.append(f"  [have]  {row['query']}  ->  {row['existing']}")
+        elif status == "planned":
+            lines.append(f"  [plan]  {row['query']}  ->  {row['url']}")
+        elif status in ("completed", "completed_with_errors"):
+            for item in row.get("result") or []:
+                lines.append(
+                    f"  [added] {item.get('artist')} — {item.get('title')}"
+                    f"{' [' + str(item['album']) + ']' if item.get('album') else ''}"
+                    f"   <{row['url']}>"
+                )
+        else:
+            lines.append(f"  [{status}] {row['query']}: "
+                         f"{row.get('error') or row.get('errors') or ''}")
+    s = payload["summary"]
+    lines.append(
+        f"\nrequested {s['requested']} | added {s['added']} | "
+        f"already had {s['skipped']} | planned {s['planned']} | failed {s['failed']}"
+    )
+    return "\n".join(lines)
+
+
 def format_result(payload: dict) -> str:
     """Human-readable summary of add_music() output."""
     resolved = payload.get("resolved") or {}
@@ -605,6 +836,32 @@ def build_mcp_server():
         return format_result(payload) + "\n\n" + json.dumps(payload, ensure_ascii=False)
 
     @mcp.tool()
+    def music_add_many(queries: list[str], skip_existing: bool = True,
+                       dry_run: bool = False, batch_size: int = 3,
+                       wait: bool = True, timeout_seconds: int = 900) -> str:
+        """Download and add MANY songs by name in one go.
+
+        Use this for requests like "find 20 classic Palestinian songs I don't
+        already have and download them": pass the curated list of song names.
+        Each is resolved to a verified link, anything already in the library is
+        skipped, and the rest are submitted to Nona in small batches.
+
+        Args:
+            queries: Song names, e.g. ["زهرة المدائن - فيروز", "Ya Tayr El Werwar"].
+            skip_existing: Skip songs already in the library (default True).
+            dry_run: Only plan and resolve; submit nothing.
+            batch_size: Songs in flight at once (keeps the server sane).
+            wait: Block until every job finishes. Set False for long lists and
+                  poll with music_jobs instead — a 20-song run can outlast one call.
+            timeout_seconds: Max wait per job when wait=True.
+        """
+        payload = add_many(
+            queries, skip_existing=skip_existing, dry_run=dry_run,
+            batch_size=batch_size, wait=wait, timeout=float(timeout_seconds),
+        )
+        return format_many(payload)
+
+    @mcp.tool()
     def music_job(job_id: str) -> str:
         """Get the status and result of a Nona processing job."""
         return json.dumps(get_job(job_id), ensure_ascii=False, indent=2)
@@ -654,6 +911,26 @@ def main(argv=None) -> int:
     p.add_argument("--no-verify", action="store_true",
                    help="skip the pre-flight downloadability check")
 
+    p = sub.add_parser("add-many",
+                       help="add a list of songs, skipping ones already in the library")
+    p.add_argument("queries", nargs="*", help="song names (or use --file / stdin)")
+    p.add_argument("--file", help="read one song per line from this file ('-' for stdin)")
+    p.add_argument("--source", default="auto",
+                   choices=["auto", "youtube", "soundcloud"])
+    p.add_argument("--limit", type=int, default=None)
+    p.add_argument("--batch-size", type=int, default=3)
+    p.add_argument("--timeout", type=float, default=900)
+    p.add_argument("--force", action="store_true",
+                   help="do not skip songs already in the library")
+    p.add_argument("--dry-run", action="store_true",
+                   help="resolve and plan only; submit nothing")
+    p.add_argument("--no-wait", action="store_true",
+                   help="submit and return job ids immediately")
+    p.add_argument("--json", action="store_true", help="machine-readable output")
+
+    p = sub.add_parser("existing",
+                       help="list what the library already has (artist/track)")
+
     p = sub.add_parser("resolve", help="resolve a name to a link without adding")
     p.add_argument("query")
     p.add_argument("--source", default="auto",
@@ -699,6 +976,40 @@ def main(argv=None) -> int:
             print(format_result(payload))
             if not payload.get("result"):
                 _print(payload["job"])
+        elif args.cmd == "add-many":
+            queries = list(args.queries)
+            if args.file:
+                if args.file == "-":
+                    text = sys.stdin.read()
+                else:
+                    with open(args.file, encoding="utf-8") as handle:
+                        text = handle.read()
+                queries += [
+                    line.strip() for line in text.splitlines()
+                    if line.strip() and not line.strip().startswith("#")
+                ]
+            if not queries:
+                print("error: no songs given (names, --file, or stdin)", file=sys.stderr)
+                return 1
+
+            def _progress(row):
+                print(f"  ... {row.get('status'):18} {row['query']}", file=sys.stderr)
+
+            payload = add_many(
+                queries, source=args.source, skip_existing=not args.force,
+                dry_run=args.dry_run, batch_size=args.batch_size,
+                timeout=args.timeout, limit=args.limit, wait=not args.no_wait,
+                progress=None if args.json else _progress,
+            )
+            if args.json:
+                _print(payload)
+            else:
+                print(format_many(payload))
+        elif args.cmd == "existing":
+            index = build_library_index()
+            for entry in sorted(index, key=lambda e: (e["artist"].lower(),
+                                                      e["track"].lower())):
+                print(f"{entry['artist']}/{entry['track']}")
         elif args.cmd == "jobs":
             _print(list_jobs(limit=args.limit))
         elif args.cmd == "job":

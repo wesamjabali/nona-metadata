@@ -51,10 +51,37 @@ nona add     "..." --no-wait     # return the job id immediately
 nona jobs                        # recent jobs
 nona job     job_1791016770831_gz1rgw0p1
 nona library fairuz              # search what is already filed
+nona existing                    # every artist/track already filed
 nona stats
 ```
 
 `add` exits non-zero with a message on stderr if nothing usable is found.
+
+## Bulk: "download 20 of X I don't already have"
+
+```bash
+nona add-many "زهرة المدائن - فيروز" "يا زريف الطول" "دمي فلسطيني - محمد عساف"
+nona add-many --file songs.txt --batch-size 3
+nona add-many --file songs.txt --dry-run    # resolve + plan, submit nothing
+nona add-many --file songs.txt --force      # do not skip existing
+nona add-many --file songs.txt --no-wait    # submit, return job ids
+```
+
+- **Skipped, not duplicated.** Every request is checked against the filed
+  library first (fuzzy, script-aware, so "Fairuz Li Beirut" matches a filed
+  `Le Beirut.m4a`). Already-present songs are reported and left alone.
+- **Batched.** Songs are submitted `--batch-size` at a time (default 3) and each
+  batch is waited on before the next, so a 20-song list does not open twenty
+  concurrent downloads on the server.
+- **Verified first.** Every pick is probed with `yt-dlp --simulate`; an
+  unusable link is skipped and the next candidate tried.
+- `--dry-run` is worth running first on a curated list: it prints the link and
+  video it would use for each line, so a wrong pick is visible before anything
+  is downloaded.
+
+The *choosing* of songs is a judgement call and belongs to the caller; this
+command makes the mechanical part (resolve, dedupe, verify, submit, wait)
+idempotent and inspectable.
 
 ## MCP tools
 
@@ -64,6 +91,7 @@ nona stats
 | --- | --- |
 | `music_search` | Rank candidate links for a query |
 | `music_add` | Resolve and download a song by name or URL, wait for the result |
+| `music_add_many` | Resolve and download a list, skipping what is already filed |
 | `music_job` / `music_jobs` | Job status and history |
 | `library_search` | Search files already in the library |
 | `library_stats_tool` | Cache and library counts |
