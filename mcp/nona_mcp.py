@@ -43,7 +43,13 @@ DEFAULT_BASE_URL = os.environ.get("NONA_BASE_URL", "http://localhost:80").rstrip
 YTDLP = os.environ.get("NONA_YTDLP", "yt-dlp")
 HTTP_TIMEOUT = float(os.environ.get("NONA_TIMEOUT", "60"))
 
-TERMINAL_STATUSES = {"completed", "failed", "error", "cancelled"}
+# Nona reports "processing" while a job runs. Everything else is finished:
+# "completed", "failed", and "stopped" — which is what the server sets on its own
+# startup for any job that was in flight when it restarted
+# (see `stopAllProcessingJobs` in src/services/cache.ts). Listing the *running*
+# states instead of the terminal ones means a status we have never seen is
+# treated as finished rather than waited on forever.
+RUNNING_STATUSES = {"processing", "pending", "queued", "starting", "running"}
 
 # Sources Nona can ingest, mapped to the yt-dlp search prefix that finds them.
 SEARCH_PREFIX = {
@@ -555,7 +561,7 @@ def list_jobs(limit: int = 20, base_url=None) -> list[dict]:
 
 def wait_for_job(job_id: str, timeout: float = 900, interval: float = 3.0,
                  base_url=None, on_update=None) -> dict:
-    """Poll a job until it reaches a terminal status."""
+    """Poll a job until it stops running."""
     deadline = time.time() + timeout
     last = None
     while True:
@@ -563,7 +569,7 @@ def wait_for_job(job_id: str, timeout: float = 900, interval: float = 3.0,
         if on_update and job.get("status") != last:
             on_update(job)
         last = job.get("status")
-        if (job.get("status") or "").lower() in TERMINAL_STATUSES:
+        if (job.get("status") or "").lower() not in RUNNING_STATUSES:
             return job
         if time.time() >= deadline:
             raise NonaError(
@@ -663,7 +669,7 @@ def match_in_library(query: str, index: list[dict], threshold: float = 0.8):
 
 
 def add_many(queries, source: str = "auto", skip_existing: bool = True,
-             dry_run: bool = False, batch_size: int = 3, timeout: float = 900,
+             dry_run: bool = False, batch_size: int = 2, timeout: float = 900,
              limit: int | None = None, wait: bool = True, base_url=None,
              ytdlp: str = YTDLP, progress=None) -> dict:
     """Resolve many song names and hand each to Nona.
@@ -742,8 +748,12 @@ def add_many(queries, source: str = "auto", skip_existing: bool = True,
         "planned": sum(1 for r in rows if r.get("status") == "planned"),
         "submitted": sum(1 for r in rows if r.get("status") == "submitted"),
         "failed": sum(1 for r in rows if r.get("status") in
-                      ("error", "failed", "timeout")),
+                      ("error", "failed", "timeout", "stopped")),
     }
+    # A stopped job means the server restarted underneath it; the song did not
+    # land, so it is safe and correct to re-run that line.
+    summary["retryable"] = [r["query"] for r in rows
+                            if r.get("status") in ("stopped", "error", "timeout")]
     return {"summary": summary, "rows": rows}
 
 
@@ -763,6 +773,9 @@ def format_many(payload: dict) -> str:
                     f"{' [' + str(item['album']) + ']' if item.get('album') else ''}"
                     f"   <{row['url']}>"
                 )
+        elif status == "stopped":
+            lines.append(f"  [stopped] {row['query']}: server restarted mid-job;"
+                         f" re-run this line")
         else:
             lines.append(f"  [{status}] {row['query']}: "
                          f"{row.get('error') or row.get('errors') or ''}")
@@ -771,6 +784,8 @@ def format_many(payload: dict) -> str:
         f"\nrequested {s['requested']} | added {s['added']} | "
         f"already had {s['skipped']} | planned {s['planned']} | failed {s['failed']}"
     )
+    if s.get("retryable"):
+        lines.append("re-run these: " + "; ".join(s["retryable"]))
     return "\n".join(lines)
 
 
@@ -856,7 +871,7 @@ def build_mcp_server():
 
     @mcp.tool()
     def music_add_many(queries: list[str], skip_existing: bool = True,
-                       dry_run: bool = False, batch_size: int = 3,
+                       dry_run: bool = False, batch_size: int = 2,
                        wait: bool = True, timeout_seconds: int = 900) -> str:
         """Download and add MANY songs by name in one go.
 
@@ -937,7 +952,8 @@ def main(argv=None) -> int:
     p.add_argument("--source", default="auto",
                    choices=["auto", "youtube", "soundcloud"])
     p.add_argument("--limit", type=int, default=None)
-    p.add_argument("--batch-size", type=int, default=3)
+    p.add_argument("--batch-size", type=int, default=2,
+                   help="songs in flight; the server drops connections above ~3")
     p.add_argument("--timeout", type=float, default=900)
     p.add_argument("--force", action="store_true",
                    help="do not skip songs already in the library")
