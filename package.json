@@ -4,6 +4,7 @@
   "scripts": {
     "start": "bun run src/server.ts",
     "bun:dev": "bun run --watch src/server.ts",
+    "test": "bun test",
     "nuxt:generate": "cd frontend && bun run generate",
     "nuxt:dev": "cd frontend && bun run dev",
     "dev": "(bun run bun:dev) & (bun run nuxt:dev)"

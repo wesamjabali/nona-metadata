@@ -184,6 +184,39 @@ async function requestItunesSearch<T>(
   return { data: null, rateLimited: false };
 }
 
+/**
+ * Search terms to try for one field, best first.
+ *
+ * Provider search indexes are literal: Deezer answers "Ya Tal'een Al Jabal" with
+ * nothing at all while a different spelling of the same title returns the track,
+ * and a single apostrophe is enough to lose a release. Each term is therefore
+ * tried as written and again with punctuation folded out (apostrophes, hyphens,
+ * dots) and spaces collapsed — the same words, spelled the way an index is likely
+ * to store them. The folded form is only ever used when the literal term found
+ * nothing.
+ * @param term The term as built from the library's tags.
+ * @returns One or two terms; the second is omitted when it is identical.
+ */
+export function searchTermVariants(term: string): string[] {
+  const literal = term.trim();
+  const folded = literal
+    .replace(/['’`´]/g, "")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return folded && folded !== literal ? [literal, folded] : [literal];
+}
+
+/**
+ * Expands terms into the variants to search for.
+ * @param terms The terms to expand.
+ * @returns Deduplicated variants, in order.
+ */
+function expandSearchTerms(terms: string[]): string[] {
+  return [...new Set(terms.flatMap(searchTermVariants))].filter(Boolean);
+}
+
 /** Caches search results so a multi-track album only queries once per term. */
 const itunesCache = new Map<string, AlbumArtCandidate[]>();
 const deezerCache = new Map<string, AlbumArtCandidate[]>();
@@ -362,8 +395,9 @@ export async function searchItunesCandidates(
   query: AlbumArtQuery,
   terms?: string[],
 ): Promise<AlbumArtCandidate[]> {
-  const searchTerms =
-    terms && terms.length > 0 ? terms : [`${query.artist} ${query.album}`];
+  const searchTerms = expandSearchTerms(
+    terms && terms.length > 0 ? terms : [`${query.artist} ${query.album}`],
+  );
   const candidates: AlbumArtCandidate[] = [];
 
   for (const term of searchTerms) {
@@ -452,8 +486,9 @@ export async function searchItunesTrackCandidates(
   query: TrackArtQuery,
   terms?: string[],
 ): Promise<AlbumArtCandidate[]> {
-  const searchTerms =
-    terms && terms.length > 0 ? terms : [`${query.artist} ${query.track}`];
+  const searchTerms = expandSearchTerms(
+    terms && terms.length > 0 ? terms : [`${query.artist} ${query.track}`],
+  );
   const candidates: AlbumArtCandidate[] = [];
 
   for (const term of searchTerms) {
@@ -547,8 +582,9 @@ export async function searchDeezerCandidates(
   query: AlbumArtQuery,
   terms?: string[],
 ): Promise<AlbumArtCandidate[]> {
-  const searchTerms =
-    terms && terms.length > 0 ? terms : [`${query.artist} ${query.album}`];
+  const searchTerms = expandSearchTerms(
+    terms && terms.length > 0 ? terms : [`${query.artist} ${query.album}`],
+  );
   const candidates: AlbumArtCandidate[] = [];
 
   for (const term of searchTerms) {
@@ -627,8 +663,9 @@ export async function searchDeezerTrackCandidates(
   query: TrackArtQuery,
   terms?: string[],
 ): Promise<AlbumArtCandidate[]> {
-  const searchTerms =
-    terms && terms.length > 0 ? terms : [`${query.artist} ${query.track}`];
+  const searchTerms = expandSearchTerms(
+    terms && terms.length > 0 ? terms : [`${query.artist} ${query.track}`],
+  );
   const candidates: AlbumArtCandidate[] = [];
 
   for (const term of searchTerms) {
@@ -799,10 +836,120 @@ function releasesToCandidates(
   return dedupeCandidates(candidates);
 }
 
+interface MusicBrainzRecording {
+  id?: string;
+  title?: string;
+  "artist-credit"?: { name?: string; artist?: { name?: string } }[];
+  releases?: { title?: string; "release-group"?: { id?: string } }[];
+}
+
+/**
+ * Searches MusicBrainz for *recordings*, mapping each to the artwork of a release
+ * it appears on.
+ *
+ * The album-level MusicBrainz query cannot help a folder whose album name is
+ * useless, and for an obscure single the recording is the only entry that exists.
+ * Both a strict (quoted) and a loose query are attempted; scoring happens later.
+ * @param query The track to search for.
+ * @returns Scored-ready candidates (possibly empty).
+ */
+export async function searchMusicBrainzRecordingCandidates(
+  query: TrackArtQuery,
+): Promise<AlbumArtCandidate[]> {
+  const quoted = `artist:"${query.artist}" AND recording:"${query.track}"`;
+  const loose = `artist:${query.artist} AND recording:${query.track}`;
+
+  for (const [label, searchQuery] of [
+    ["strict", quoted],
+    ["loose", loose],
+  ] as const) {
+    const recordings = await requestMusicBrainzRecordings(searchQuery);
+    const candidates = recordingsToCandidates(recordings);
+
+    if (candidates.length > 0) {
+      console.log(
+        `Album art: MusicBrainz ${label} recording query returned ${candidates.length} candidate(s)`,
+      );
+      return candidates;
+    }
+  }
+
+  return [];
+}
+
+async function requestMusicBrainzRecordings(
+  searchQuery: string,
+): Promise<MusicBrainzRecording[]> {
+  const url = `https://musicbrainz.org/ws/2/recording?${new URLSearchParams({
+    query: searchQuery,
+    fmt: "json",
+    limit: "10",
+  }).toString()}`;
+
+  return musicBrainzThrottle.schedule(async () => {
+    try {
+      const response = await fetch(url, {
+        headers: { "User-Agent": USER_AGENT },
+      });
+
+      if (!response.ok) {
+        console.warn(
+          `MusicBrainz recording search failed (${response.status} ${response.statusText})`,
+        );
+        return [];
+      }
+
+      const data = (await response.json()) as {
+        recordings?: MusicBrainzRecording[];
+      };
+      return data.recordings ?? [];
+    } catch (error) {
+      console.warn("MusicBrainz recording search error:", error);
+      return [];
+    }
+  });
+}
+
+function recordingsToCandidates(
+  recordings: MusicBrainzRecording[],
+): AlbumArtCandidate[] {
+  const candidates: AlbumArtCandidate[] = [];
+
+  for (const recording of recordings) {
+    if (!recording.title) {
+      continue;
+    }
+
+    const credit = recording["artist-credit"]?.[0];
+    const artist = credit?.artist?.name ?? credit?.name ?? "";
+    const release = recording.releases?.find(
+      (entry) => entry["release-group"]?.id,
+    );
+    const mbid = release?.["release-group"]?.id;
+
+    candidates.push({
+      provider: "musicbrainz",
+      id: recording.id ?? `${artist}:${recording.title}`,
+      artist,
+      // The containing release, for the log line; the track is what is scored.
+      album: release?.title ?? "",
+      track: recording.title,
+      imageUrls: mbid
+        ? [
+            `https://coverartarchive.org/release-group/${mbid}/front-1200`,
+            `https://coverartarchive.org/release-group/${mbid}/front-500`,
+            `https://coverartarchive.org/release-group/${mbid}/front`,
+          ]
+        : [],
+    });
+  }
+
+  return dedupeCandidates(candidates);
+}
+
 // ---------------------------------------------------------------------------
 // Discogs
 // ---------------------------------------------------------------------------
-
 interface DiscogsSearchResult {
   id?: number;
   title?: string;

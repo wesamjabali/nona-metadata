@@ -218,6 +218,52 @@ export function bigramSimilarity(a: string, b: string): number {
   );
 }
 
+/**
+ * Score given to a query whose words all appear in the candidate, in order and
+ * adjacent, with the candidate simply carrying extra words.
+ *
+ * This is how a release that names itself after its edition stops hiding the
+ * recording: "7ASAD" against "7ASAD (Live In Berlin)". A word list of qualifiers
+ * ("live", "remix", …) only ever covers the ones already seen; phrase containment
+ * covers the class, and it is bounded by the artist floor, which still has to
+ * pass on its own.
+ */
+const PHRASE_CONTAINMENT_SCORE = 0.7;
+
+/**
+ * Finds the query as an adjacent run of words inside the candidate.
+ * @param shorter The candidate that should be contained.
+ * @param longer The candidate that may contain it.
+ * @returns {@link PHRASE_CONTAINMENT_SCORE} when contained, otherwise 0.
+ */
+function phraseContainment(a: string, b: string): number {
+  const aTokens = a.split(" ").filter(Boolean);
+  const bTokens = b.split(" ").filter(Boolean);
+
+  if (aTokens.length === 0 || bTokens.length === 0) {
+    return 0;
+  }
+
+  const [shorter, longer] =
+    aTokens.length <= bTokens.length ? [aTokens, bTokens] : [bTokens, aTokens];
+
+  if (shorter.length > longer.length) {
+    return 0;
+  }
+
+  for (let start = 0; start + shorter.length <= longer.length; start++) {
+    const matches = shorter.every(
+      (token, offset) => longer[start + offset] === token,
+    );
+
+    if (matches) {
+      return PHRASE_CONTAINMENT_SCORE;
+    }
+  }
+
+  return 0;
+}
+
 /** Scores a pair of already-normalized strings (all strategies combined). */
 function scoreNormalizedPair(a: string, b: string): number {
   if (!a || !b) {
@@ -238,6 +284,7 @@ function scoreNormalizedPair(a: string, b: string): number {
     tokenDiceNormalized(a, b),
     bigramDiceNormalized(a, b) * 0.95,
     containment,
+    phraseContainment(a, b),
   );
 }
 

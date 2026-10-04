@@ -238,9 +238,37 @@ none):
 2. iTunes + Deezer for the **track** — a song result carries the album it belongs
    to, which is the only way to get art for a folder named `Unknown Album`
 3. iTunes + Deezer widened with hints from the source video (title/uploader)
-4. MusicBrainz / Cover Art Archive + Discogs
-5. The source video's thumbnail
-6. A **generated cover** — the last resort, so a folder is never left blank
+4. iTunes + Deezer asked for the **artist alone** (artist floor raised to 0.7) and
+   for the **title alone** — one of these finds a release a combined query never
+   will: Deezer answers `دعسوقة فرنصا` with nothing at all while `فرنصا` returns
+   the track, and it files Rim Banna's `Ya Talaaen El Jabal` under a spelling no
+   title search guesses
+5. MusicBrainz / Cover Art Archive (release *and* recording) + Discogs
+6. The source video's thumbnail
+7. A **generated cover** — the last resort, so a folder is never left blank
+
+Every search term is also retried with its punctuation folded out (apostrophes,
+hyphens, dots), because provider indexes are literal and a single apostrophe is
+enough to lose a release.
+
+Matching itself has three rules that exist because real artwork was lost without
+them:
+
+- **Release-format qualifiers are noise.** `7ASAD (Live In Berlin)` must match the
+  folder `7ASAD`; the words that describe an *edition* are stripped from both
+  sides instead of blocking the match.
+- **Phrase containment.** A query whose words appear in the release title as an
+  adjacent run (`Wala Forsa`, `Ya Talaaen`) scores 0.7 regardless of what else the
+  title carries, so a qualifier can hide a recording only if the artist floor also
+  fails.
+- **Cross-script transliteration.** The library files artists under both scripts
+  (`دعسوقة` and `Do3souqa`), and the two used to compare at exactly 0. Arabic is
+  transliterated to the Latin spelling the library uses (ع→3, ق→k, و→u, folded the
+  same way as the Latin side) before comparing across scripts.
+
+`bun test` covers all of it offline — every "must match" case in
+`tests/albumArtMatching.test.ts` is a miss that reached the live library once, with
+the near-misses that must stay rejected next to them.
 
 The thumbnail fallback reads the `Source: <url>` value the pipeline writes to
 each file's `comment` tag, e.g.

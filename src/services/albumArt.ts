@@ -58,6 +58,7 @@ import {
   searchItunesCandidates,
   searchItunesTrackCandidates,
   searchMusicBrainzCandidates,
+  searchMusicBrainzRecordingCandidates,
 } from "./albumArtProviders.js";
 import { generatePlaceholderArt } from "./albumArtPlaceholder.js";
 
@@ -593,8 +594,8 @@ export async function fetchAlbumArt(
     }
   }
 
-  // Phase 5: community databases. Lower coverage (especially for Arabic
-  // releases) but occasionally the only source, so still verified by score.
+  // Phase 5: community databases — the last provider nets. Album-level here,
+  // plus a recording lookup for the folders that have only a track to go on.
   if (hasSearchableAlbum) {
     const albumQuery: AlbumArtQuery = { artist: artistName, album: albumName };
     const secondaryCandidates = await gatherCandidates([
@@ -608,6 +609,24 @@ export async function fetchAlbumArt(
     );
     if (secondaryImage) {
       return secondaryImage;
+    }
+  }
+
+  if (trackTitle) {
+    const recordingQuery: TrackArtQuery = {
+      artist: artistName,
+      track: trackTitle,
+    };
+
+    const recordingImage = await downloadTrackCover(
+      await gatherCandidates([
+        searchMusicBrainzRecordingCandidates(recordingQuery),
+      ]),
+      recordingQuery,
+    );
+
+    if (recordingImage) {
+      return recordingImage;
     }
   }
 
