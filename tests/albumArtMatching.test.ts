@@ -13,6 +13,7 @@
 
 import { describe, expect, test } from "bun:test";
 
+import { pickAgreedReleaseKey } from "../src/services/albumArt.js";
 import {
   type AlbumArtCandidate,
   rankCandidates,
@@ -175,6 +176,28 @@ describe("a release title that only carries extra words", () => {
     expect(musicSimilarity("Ya Jabal", "Ya Talaaen El Jabal")).toBeLessThan(0.7);
     // The run that *is* there — "Ya Talaaen" — gets the containment score.
     expect(musicSimilarity("Ya Talaaen", "Ya Talaaen El Jabal")).toBeGreaterThanOrEqual(0.7);
+  });
+});
+
+describe("a folder's tracks agreeing on one release", () => {
+  test("both tracks of a two-track folder must agree", () => {
+    expect(pickAgreedReleaseKey(new Map([["deezer:album", 2]]), 2)).toBe("deezer:album");
+    expect(pickAgreedReleaseKey(new Map([["deezer:a", 1], ["deezer:b", 1]]), 2)).toBeNull();
+    expect(pickAgreedReleaseKey(new Map([["deezer:a", 1]]), 2)).toBeNull();
+  });
+
+  test("a strict majority wins", () => {
+    expect(
+      pickAgreedReleaseKey(new Map([["deezer:a", 3], ["deezer:b", 1]]), 4),
+    ).toBe("deezer:a");
+    // Two of four is a tie, not a majority.
+    expect(
+      pickAgreedReleaseKey(new Map([["deezer:a", 2], ["deezer:b", 2]]), 4),
+    ).toBeNull();
+  });
+
+  test("nothing resolved means no art", () => {
+    expect(pickAgreedReleaseKey(new Map(), 3)).toBeNull();
   });
 });
 

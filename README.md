@@ -294,6 +294,14 @@ Track-level search only runs for a folder holding exactly one track: one track's
 cover is not evidence for what is on a whole compilation, so multi-track folders
 fall through to the thumbnail and then a generated cover.
 
+A multi-track folder under an **unusable album name** is the one exception, and it
+is decided by agreement rather than by one track: every title is searched, and the
+folder takes artwork only when a strict majority of its tracks resolve to the same
+release (`pickAgreedReleaseKey`). Songs from one album therefore get that album's
+cover even when nothing in their tags says which album it is, while a folder of
+unrelated rips agrees on nothing and is left to the thumbnail/generated steps
+instead of being labelled with one song's artwork.
+
 Artwork is written as a `cover.*` sidecar (e.g. `cover.jpg`) in the album folder.
 
 ### Cache Management

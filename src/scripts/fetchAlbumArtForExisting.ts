@@ -97,9 +97,16 @@ async function fetchAlbumArtForFolder(
   );
 
   const albumArtResult = await fetchAlbumArt(artist, album, {
-    // Only a single-track folder can use a track-level match: one track's cover
-    // is not evidence for what is on a whole compilation.
-    trackTitle: singleTrackTitle ?? undefined,
+    // A single-track folder searches its title directly. A multi-track folder
+    // under an unusable album name searches every title and only takes artwork
+    // when a majority of them agree on one release; a folder with a real album
+    // name relies on the album itself, because one track's single says nothing
+    // about the album the folder is named after.
+    trackTitle:
+      album === "Unknown Album" && folder.titles.length === 1
+        ? folder.titles[0]
+        : undefined,
+    trackTitles: album === "Unknown Album" ? folder.titles : undefined,
     placeholderLabel: label,
     allowGeneratedArt: true,
     // Resolved lazily: only pays for the yt-dlp source lookup when the fast

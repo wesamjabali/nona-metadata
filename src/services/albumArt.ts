@@ -40,6 +40,7 @@ import {
   MIN_ALBUM_MATCH_SCORE,
   MIN_ARTIST_MATCH_SCORE,
   MIN_ARTIST_ONLY_MATCH_SCORE,
+  normalizeForMusicMatch,
 } from "../utils/musicMatching.js";
 import type {
   AlbumArtCandidate,
@@ -111,6 +112,17 @@ export interface FetchAlbumArtOptions extends AlbumArtSourceContext {
    * cover to a multi-track folder would be a guess, not a match.
    */
   trackTitle?: string;
+  /**
+   * Track titles for a folder that holds several tracks under an unusable album
+   * name. Each is searched on its own and the folder is only given art when a
+   * *majority of the tracks agree* on the release they came from — a compilation
+   * of unrelated rips has no single cover to find, and one track's artwork must
+   * not be presented as the folder's.
+   *
+   * Ignored when {@link trackTitle} is set (a single-track folder searches its one
+   * title directly).
+   */
+  trackTitles?: string[];
   /**
    * Draw a placeholder cover when neither a provider nor a thumbnail produced
    * anything. Off by default, so a caller that would rather have no art than
@@ -380,6 +392,30 @@ function collectFallbackImageUrls(context: AlbumArtSourceContext): string[] {
 }
 
 /**
+ * Picks the release a folder's tracks agree on.
+ *
+ * Exported so the rule can be tested without the network: a strict majority is
+ * required, which for a two-track folder means both tracks have to land on the
+ * same release. Anything less and the folder keeps no track-level artwork, since
+ * presenting one song's cover as the folder's would be a guess.
+ * @param votes Release key -> how many of the folder's tracks resolved to it.
+ * @param trackCount How many tracks the folder holds.
+ * @returns The winning release key, or null when no release has a majority.
+ */
+export function pickAgreedReleaseKey(
+  votes: Map<string, number>,
+  trackCount: number,
+): string | null {
+  const [winner] = [...votes.entries()].sort((a, b) => b[1] - a[1]);
+
+  if (!winner || winner[1] * 2 <= trackCount) {
+    return null;
+  }
+
+  return winner[0];
+}
+
+/**
  * Fetches album art for a given artist and album.
  * @param artist The artist's name.
  * @param album The album's title. May be empty or the placeholder name
@@ -430,11 +466,28 @@ export async function fetchAlbumArt(
   }
 
   /**
-   * Phase 2 (and its widened repeat in phase 3): search for the track itself and
-   * use the artwork of the release it belongs to.
-   * @param terms Search terms to use instead of the default "artist track".
-   * @returns The downloaded cover, or null when there is no track title or no
-   * trustworthy match.
+   * Ranks the providers' candidates for one track, without downloading.
+   * @param title The track title to search for.
+   * @param terms Optional search terms to use instead of "artist track".
+   * @returns Trusted candidates, best first.
+   */
+  const rankTrack = async (
+    title: string,
+    terms?: string[],
+  ): Promise<ScoredAlbumArtCandidate[]> => {
+    const trackQuery: TrackArtQuery = { artist: artistName, track: title };
+    const candidates = await gatherCandidates([
+      searchItunesTrackCandidates(trackQuery, terms),
+      searchDeezerTrackCandidates(trackQuery, terms),
+    ]);
+
+    return rankTrackCandidates(candidates, trackQuery);
+  };
+
+  /**
+   * Resolves the cover for the folder's single track.
+   * @param terms Optional search terms to use instead of "artist track".
+   * @returns The downloaded cover, or null.
    */
   const resolveTrackCover = async (
     terms?: string[],
@@ -443,18 +496,74 @@ export async function fetchAlbumArt(
       return null;
     }
 
-    const trackQuery: TrackArtQuery = { artist: artistName, track: trackTitle };
-    const candidates = await gatherCandidates([
-      searchItunesTrackCandidates(trackQuery, terms),
-      searchDeezerTrackCandidates(trackQuery, terms),
-    ]);
+    return downloadRankedCandidates(await rankTrack(trackTitle, terms));
+  };
 
-    return downloadTrackCover(candidates, trackQuery);
+  /**
+   * Resolves the release that a multi-track folder's songs agree on.
+   *
+   * Each title is searched separately, and the folder only takes artwork when a
+   * strict majority of its tracks land on the same release — which is how a
+   * folder of songs from one album gets that album's cover even though nothing in
+   * its tags says which album it is. A folder of unrelated rips agrees on nothing
+   * and is left for the thumbnail/generated steps rather than being labelled with
+   * one track's artwork.
+   * @returns The downloaded cover, or null when the tracks do not agree.
+   */
+  const resolveAgreedReleaseCover = async (): Promise<AlbumArtResult | null> => {
+    const titles = (options.trackTitles ?? [])
+      .map((title) => title.trim())
+      .filter(Boolean);
+
+    if (trackTitle || titles.length < 2) {
+      return null;
+    }
+
+    const votes = new Map<string, ScoredAlbumArtCandidate[]>();
+
+    for (const title of titles) {
+      const best = (await rankTrack(title))[0];
+      if (!best) {
+        continue;
+      }
+
+      // Same release, spelled the way each provider prefers ("Album" vs
+      // "Album (Deluxe)") — the normalized title keeps those together.
+      const key = `${best.candidate.provider}:${normalizeForMusicMatch(
+        best.candidate.album,
+      )}`;
+      votes.set(key, [...(votes.get(key) ?? []), best]);
+    }
+
+    const voteCounts = new Map(
+      [...votes.entries()].map(([key, list]) => [key, list.length]),
+    );
+    const agreedKey = pickAgreedReleaseKey(voteCounts, titles.length);
+
+    if (!agreedKey) {
+      console.log(
+        `Album art: the ${titles.length} tracks in "${
+          albumName || trackTitle || "this folder"
+        }" do not agree on a release; skipping track-level art`,
+      );
+      return null;
+    }
+
+    console.log(
+      `Album art: ${voteCounts.get(agreedKey)}/${titles.length} tracks agree on "${agreedKey}"; using its cover`,
+    );
+
+    return downloadRankedCandidates(votes.get(agreedKey) ?? []);
   };
 
   const trackImage = await resolveTrackCover();
   if (trackImage) {
     return trackImage;
+  }
+
+  const agreedReleaseImage = await resolveAgreedReleaseCover();
+  if (agreedReleaseImage) {
+    return agreedReleaseImage;
   }
 
   // Resolve source-media context only now that the fast providers have missed,
