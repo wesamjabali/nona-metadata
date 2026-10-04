@@ -4,13 +4,22 @@
  */
 
 /**
- * Result counters shared by the bulk sidecar jobs (album art, lyrics, ...).
+ * Result counters for an album-art pass.
+ *
+ * "fetched" counts folders this pass gave a cover to, "upgraded" the subset where
+ * a generated placeholder was replaced by real artwork, and "failed" the folders
+ * where nothing at all could be produced (a generated cover is always produced,
+ * so a failure means the folder had no artist to work with or rendering broke).
  */
-export interface SidecarResults {
+export interface AlbumArtJobResults {
   processed: number;
   fetched: number;
+  upgraded: number;
   existed: number;
-  errors: number;
+  skipped: number;
+  failed: number;
+  /** How many covers each step of the chain produced (provider name -> count). */
+  bySource: Record<string, number>;
 }
 
 /**
@@ -40,7 +49,7 @@ export interface ProcessingJob {
   results?: MetaData[];
   errors?: string[];
   playlistTitle?: string;
-  albumArtResults?: SidecarResults;
+  albumArtResults?: AlbumArtJobResults;
   lyricsResults?: LyricsJobResults;
 }
 

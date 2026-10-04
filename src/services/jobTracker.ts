@@ -2,7 +2,7 @@ import type {
   LyricsJobResults,
   MetaData,
   ProcessingJob,
-  SidecarResults,
+  AlbumArtJobResults,
 } from "../types/metadata.js";
 import type { CacheManager } from "./cache.js";
 
@@ -102,11 +102,11 @@ export class JobTracker {
    * Complete a job successfully
    */
   completeJob(id: string, results: MetaData[], playlistTitle?: string): void;
-  completeJob(id: string, albumArtResults: SidecarResults): void;
+  completeJob(id: string, albumArtResults: AlbumArtJobResults): void;
   completeJob(id: string, lyricsResults: LyricsJobResults): void;
   completeJob(
     id: string,
-    resultsOrSidecar: MetaData[] | SidecarResults | LyricsJobResults,
+    resultsOrSidecar: MetaData[] | AlbumArtJobResults | LyricsJobResults,
     playlistTitle?: string,
   ): void {
     const job = this.jobs.get(id);

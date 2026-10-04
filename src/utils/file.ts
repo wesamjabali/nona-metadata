@@ -126,6 +126,11 @@ export function getOrganizedFilePath(
 
 /**
  * Generates the album art file path for an artist/album combination using case-insensitive matching.
+ *
+ * "Unknown Album" is a legitimate folder name here — it is where tracks whose
+ * release could not be identified live, and those folders need covers like any
+ * other (the album-art chain finds them artwork by track instead). Only a truly
+ * missing album name has no folder to put a cover in.
  * @param artist The artist name.
  * @param album The album name (or null).
  * @returns The base file path where the album art should be stored (without extension), or null if no album.
@@ -134,7 +139,7 @@ export async function getAlbumArtPath(
   artist: string,
   album: string | null,
 ): Promise<string | null> {
-  if (album === null || album === "" || album === "Unknown Album") {
+  if (album === null || album.trim() === "") {
     return null;
   }
 

@@ -286,7 +286,15 @@
                     >
                       {{ slotProps.data.albumArtResults.fetched }}
                     </div>
-                    <div class="album-art__stat-label">Fetched</div>
+                    <div class="album-art__stat-label">Covers Added</div>
+                  </div>
+                  <div class="album-art__stat">
+                    <div
+                      class="album-art__stat-number album-art__stat-number--green"
+                    >
+                      {{ slotProps.data.albumArtResults.upgraded }}
+                    </div>
+                    <div class="album-art__stat-label">Upgraded to Real Art</div>
                   </div>
                   <div class="album-art__stat">
                     <div
@@ -300,9 +308,9 @@
                     <div
                       class="album-art__stat-number album-art__stat-number--red"
                     >
-                      {{ slotProps.data.albumArtResults.errors }}
+                      {{ slotProps.data.albumArtResults.failed }}
                     </div>
-                    <div class="album-art__stat-label">Errors</div>
+                    <div class="album-art__stat-label">No Artwork</div>
                   </div>
                 </div>
               </div>

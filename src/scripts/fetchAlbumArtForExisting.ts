@@ -1,228 +1,246 @@
 #!/usr/bin/env bun
 
-import { join } from "path";
-import { baseDirectory } from "../config/constants.js";
-import type { AlbumArtSourceContext } from "../services/albumArt.js";
+import type { AlbumArtSource } from "../services/albumArt.js";
 import { fetchAlbumArt, saveAlbumArt } from "../services/albumArt.js";
+import {
+  forgetGeneratedCover,
+  isGeneratedCover,
+  markGeneratedCover,
+} from "../services/albumArtPlaceholder.js";
 import { JobTracker } from "../services/jobTracker.js";
-import { getFileMetadata } from "../services/metadata.js";
-import { getVideoInfo } from "../services/youtube.js";
-import { listFilesRecursively } from "../utils/directory.js";
+import { resolveSourceContext } from "../services/sourceContext.js";
+import {
+  type AlbumFolder,
+  groupMusicFilesByAlbumFolder,
+  readFolderTags,
+  resolveAlbumName,
+} from "../utils/albumFolders.js";
 import { findExistingAlbumArt, getAlbumArtPath } from "../utils/file.js";
-import { extractSourceUrlFromTags } from "../utils/sourceUrl.js";
-import { buildSearchHints, pickThumbnailUrls } from "../utils/thumbnail.js";
-import { buildYouTubeThumbnailUrlsFromSourceUrl } from "../utils/youtubeUrl.js";
 
-/**
- * Resolves the album art context for a track from its stored source URL.
- *
- * Processed tracks record `Source: <url>` in their comment tag, which lets us
- * (a) widen provider searches with the source video's title/uploader and
- * (b) fall back to the video thumbnail. Files processed before that tag was
- * introduced have no URL — that is expected, so a missing URL is not an error.
- *
- * For a YouTube source the thumbnail URLs are derived straight from the video
- * ID in the comment, so artwork is still available when yt-dlp cannot reach the
- * video (removed/private uploads, rate limiting, a broken extractor). yt-dlp is
- * used to *enrich* that: it supplies real search hints and, where available, its
- * own highest-resolution still.
- * @param sourceUrl The source URL read from the file's comment tag, if any.
- * @returns Fallback image URLs (best first) and optional search hints.
- */
-async function resolveSourceContext(
-  sourceUrl: string | null,
-): Promise<AlbumArtSourceContext> {
-  if (!sourceUrl) {
-    console.log("ℹ️  No source URL stored in metadata (legacy file)");
-    return {};
-  }
+/** What happened to one album folder during a backfill pass. */
+type FolderOutcome =
+  /** Art was already there and is not a generated placeholder. */
+  | "existed"
+  /** A cover was written in this pass. */
+  | "fetched"
+  /** A generated placeholder was replaced by real artwork. */
+  | "upgraded"
+  /** No artist tag (or no album folder) to work with. */
+  | "skipped"
+  /** Nothing could be produced. */
+  | "failed";
 
-  console.log(`🔗 Source URL: ${sourceUrl}`);
-
-  try {
-    const videoInfo = await getVideoInfo(sourceUrl);
-
-    return {
-      fallbackImageUrls: pickThumbnailUrls(videoInfo, sourceUrl),
-      hints: buildSearchHints(videoInfo, sourceUrl),
-    };
-  } catch (error) {
-    console.warn(
-      `⚠️  Could not fetch info for source URL ${sourceUrl}:`,
-      (error as Error).message,
-    );
-
-    const youtubeThumbnailUrls =
-      buildYouTubeThumbnailUrlsFromSourceUrl(sourceUrl);
-
-    if (youtubeThumbnailUrls.length > 0) {
-      console.log(
-        "↩️  Falling back to the YouTube thumbnail URLs built from the video id",
-      );
-      return { fallbackImageUrls: youtubeThumbnailUrls };
-    }
-
-    return {};
-  }
+export interface AlbumArtBackfillSummary {
+  /** Album folders considered. */
+  processed: number;
+  /** Folders whose cover was written in this pass. */
+  fetched: number;
+  /** Placeholders replaced by real artwork in this pass. */
+  upgraded: number;
+  /** Folders that already had (real) artwork. */
+  existed: number;
+  /** Folders with nothing to search with. */
+  skipped: number;
+  /** Folders where nothing could be produced. */
+  failed: number;
+  /** How many covers each step of the chain produced. */
+  bySource: Record<string, number>;
 }
 
 /**
- * Processes all existing music files and fetches album art for those missing it
+ * Fetches the cover for one album folder.
+ * @param folder The folder to work on.
+ * @returns What happened, and which step produced the artwork.
+ */
+async function fetchAlbumArtForFolder(
+  folder: AlbumFolder,
+): Promise<{ outcome: FolderOutcome; source?: AlbumArtSource }> {
+  const tags = await readFolderTags(folder);
+
+  const artist = tags.artist?.trim();
+  if (!artist) {
+    console.log("⚠️  No artist found in metadata, skipping...");
+    return { outcome: "skipped" };
+  }
+
+  // "Unknown Album" is not a reason to skip — those folders need covers most of
+  // all, and their artwork comes from the track instead of the album.
+  const album = resolveAlbumName(tags);
+
+  const albumArtPath = await getAlbumArtPath(artist, album);
+  if (!albumArtPath) {
+    console.log("⚠️  Could not determine album art path, skipping...");
+    return { outcome: "skipped" };
+  }
+
+  const singleTrackTitle = folder.titles.length === 1 ? folder.titles[0] : null;
+  // Never label a cover "Unknown Album": a single-track folder is named after
+  // its track, a multi-track one is simply "Singles".
+  const label =
+    album === "Unknown Album" ? (singleTrackTitle ?? "Singles") : album;
+
+  const existingArt = await findExistingAlbumArt(albumArtPath);
+  const generatedArt = await isGeneratedCover(folder.relativePath);
+  if (existingArt && !generatedArt) {
+    console.log(`✅ Album art already exists: ${existingArt}`);
+    return { outcome: "existed" };
+  }
+
+  console.log(
+    `${
+      generatedArt ? "♻️  Retrying" : "🔍 Fetching"
+    } album art for "${label}" (${artist})${
+      singleTrackTitle
+        ? ` [track: ${singleTrackTitle}]`
+        : ` [${folder.titles.length} tracks]`
+    }...`,
+  );
+
+  const albumArtResult = await fetchAlbumArt(artist, album, {
+    // Only a single-track folder can use a track-level match: one track's cover
+    // is not evidence for what is on a whole compilation.
+    trackTitle: singleTrackTitle ?? undefined,
+    placeholderLabel: label,
+    allowGeneratedArt: true,
+    // Resolved lazily: only pays for the yt-dlp source lookup when the fast
+    // providers (iTunes/Deezer) fail to find a confident match. The YouTube
+    // thumbnail fallback itself needs no network lookup.
+    resolveSourceContext: () => resolveSourceContext(tags.sourceUrl),
+  });
+
+  if (!albumArtResult) {
+    console.log(`❌ No album art found for "${label}" by "${artist}"`);
+    return { outcome: "failed" };
+  }
+
+  const savedPath = await saveAlbumArt(
+    albumArtResult.data,
+    albumArtResult.contentType,
+    albumArtPath,
+  );
+
+  if (!savedPath) {
+    console.log("❌ Failed to save album art");
+    return { outcome: "failed" };
+  }
+
+  if (albumArtResult.source === "generated") {
+    await markGeneratedCover(folder.relativePath, label);
+  } else {
+    await forgetGeneratedCover(folder.relativePath);
+  }
+
+  console.log(
+    `✅ Saved album art (${albumArtResult.description}) to: ${savedPath}`,
+  );
+
+  return {
+    outcome: generatedArt ? "upgraded" : "fetched",
+    source: albumArtResult.source,
+  };
+}
+
+/**
+ * Walks the whole library and gives every album folder a cover: real artwork
+ * when a provider, the source thumbnail or the source media can supply it, and a
+ * generated cover otherwise.
+ * @param jobTracker Optional job tracker to report progress to.
+ * @param jobId Optional job id to report progress for.
+ * @returns Counts per outcome and per artwork source.
  */
 async function fetchAlbumArtForExistingFiles(
   jobTracker?: JobTracker,
   jobId?: string,
-): Promise<{
-  processed: number;
-  fetched: number;
-  existed: number;
-  errors: number;
-}> {
+): Promise<AlbumArtBackfillSummary> {
   console.log("🎵 Starting album art fetch for existing files...");
 
-  try {
-    const allFiles = await listFilesRecursively(baseDirectory, baseDirectory);
-    const musicFiles = allFiles.filter(
-      (file) =>
-        file.endsWith(".m4a") ||
-        file.endsWith(".mp3") ||
-        file.endsWith(".flac") ||
-        file.endsWith(".wav"),
-    );
+  const folders = await groupMusicFilesByAlbumFolder();
 
-    console.log(`📁 Found ${musicFiles.length} music files`);
+  console.log(
+    `📁 Found ${folders.length} album folders (${folders.reduce(
+      (total, folder) => total + folder.tracks.length,
+      0,
+    )} tracks)`,
+  );
 
-    let processed = 0;
-    let albumArtFetched = 0;
-    let albumArtExists = 0;
-    let errors = 0;
+  const summary: AlbumArtBackfillSummary = {
+    processed: 0,
+    fetched: 0,
+    upgraded: 0,
+    existed: 0,
+    skipped: 0,
+    failed: 0,
+    bySource: {},
+  };
+
+  if (jobTracker && jobId) {
+    jobTracker.updateProgress(jobId, {
+      total: folders.length,
+      completed: 0,
+      failed: 0,
+    });
+  }
+
+  for (const folder of folders) {
+    console.log(`\n🎵 Processing: ${folder.relativePath}`);
+
+    try {
+      const { outcome, source } = await fetchAlbumArtForFolder(folder);
+
+      switch (outcome) {
+        case "fetched":
+          summary.fetched++;
+          break;
+        case "upgraded":
+          summary.upgraded++;
+          break;
+        case "existed":
+          summary.existed++;
+          break;
+        case "skipped":
+          summary.skipped++;
+          break;
+        case "failed":
+          summary.failed++;
+          break;
+      }
+
+      if (source) {
+        summary.bySource[source] = (summary.bySource[source] ?? 0) + 1;
+      }
+    } catch (error) {
+      console.error(`❌ Error processing ${folder.relativePath}:`, error);
+      summary.failed++;
+    }
+
+    summary.processed++;
 
     if (jobTracker && jobId) {
       jobTracker.updateProgress(jobId, {
-        total: musicFiles.length,
-        completed: 0,
-        failed: 0,
+        total: folders.length,
+        completed: summary.processed,
+        failed: summary.failed,
       });
     }
-
-    for (const relativeFilePath of musicFiles) {
-      const fullFilePath = relativeFilePath.startsWith(baseDirectory)
-        ? relativeFilePath
-        : join(baseDirectory, relativeFilePath);
-      console.log(`\n🎵 Processing: ${relativeFilePath}`);
-      console.log(`🔍 Base directory: ${baseDirectory}`);
-      console.log(`🔍 Full file path: ${fullFilePath}`);
-
-      try {
-        const metadata = await getFileMetadata(fullFilePath);
-        const format = metadata.format;
-        const tags = format.tags || {};
-
-        // The source URL lives in the comment tag (`Source: <url>`). It is read
-        // from the tags already in hand so the fallback thumbnail is known
-        // without probing the file (or the network) a second time.
-        const sourceUrl = extractSourceUrlFromTags(tags);
-
-        const artist =
-          tags.artist || tags.ARTIST || tags.albumartist || tags.ALBUMARTIST;
-        const album = tags.album || tags.ALBUM;
-
-        if (!artist) {
-          console.log(`⚠️  No artist found in metadata, skipping...`);
-          processed++;
-          continue;
-        }
-
-        if (!album || album === "Unknown Album") {
-          console.log(
-            `⚠️  No album found in metadata or album is 'Unknown Album', skipping...`,
-          );
-          processed++;
-          continue;
-        }
-
-        console.log(`🎤 Artist: ${artist}`);
-        console.log(`💿 Album: ${album}`);
-
-        const albumArtPath = await getAlbumArtPath(artist, album);
-        if (!albumArtPath) {
-          console.log(`⚠️  Could not determine album art path, skipping...`);
-          processed++;
-          continue;
-        }
-
-        const existingAlbumArt = await findExistingAlbumArt(albumArtPath);
-        if (existingAlbumArt) {
-          console.log(`✅ Album art already exists: ${existingAlbumArt}`);
-          albumArtExists++;
-          processed++;
-          continue;
-        }
-
-        console.log(`🔍 Fetching album art for "${album}" by "${artist}"...`);
-        const albumArtResult = await fetchAlbumArt(artist, album, {
-          // Resolved lazily: only pays for the yt-dlp source lookup when the
-          // fast providers (iTunes/Deezer) fail to find a confident match. The
-          // YouTube thumbnail fallback itself needs no network lookup.
-          resolveSourceContext: () => resolveSourceContext(sourceUrl),
-        });
-
-        if (albumArtResult) {
-          const savedPath = await saveAlbumArt(
-            albumArtResult.data,
-            albumArtResult.contentType,
-            albumArtPath,
-          );
-          if (savedPath) {
-            console.log(`✅ Successfully saved album art to: ${savedPath}`);
-            albumArtFetched++;
-          } else {
-            console.log(`❌ Failed to save album art`);
-            errors++;
-          }
-        } else {
-          console.log(`❌ No album art found for "${album}" by "${artist}"`);
-          errors++;
-        }
-
-        processed++;
-      } catch (error) {
-        console.error(`❌ Error processing ${relativeFilePath}:`, error);
-        errors++;
-        processed++;
-      }
-
-      if (jobTracker && jobId) {
-        jobTracker.updateProgress(jobId, {
-          total: musicFiles.length,
-          completed: processed,
-          failed: errors,
-        });
-      }
-    }
-
-    const results = {
-      processed,
-      fetched: albumArtFetched,
-      existed: albumArtExists,
-      errors,
-    };
-
-    console.log(`\n📊 Summary:`);
-    console.log(`   Processed: ${processed}/${musicFiles.length} files`);
-    console.log(`   Album art fetched: ${albumArtFetched}`);
-    console.log(`   Album art already existed: ${albumArtExists}`);
-    console.log(`   Errors: ${errors}`);
-    console.log(`\n✨ Done!`);
-
-    return results;
-  } catch (error) {
-    console.error("❌ Failed to process existing files:", error);
-    if (import.meta.main) {
-      process.exit(1);
-    }
-    throw error;
   }
+
+  const sources = Object.entries(summary.bySource)
+    .map(([source, count]) => `${source}: ${count}`)
+    .join(", ");
+
+  console.log("\n📊 Summary:");
+  console.log(
+    `   Album folders processed: ${summary.processed}/${folders.length}`,
+  );
+  console.log(`   Covers written: ${summary.fetched}`);
+  console.log(`   Placeholders upgraded to real art: ${summary.upgraded}`);
+  console.log(`   Already had artwork: ${summary.existed}`);
+  console.log(`   Skipped (nothing to search with): ${summary.skipped}`);
+  console.log(`   No artwork produced: ${summary.failed}`);
+  console.log(`   Sources: ${sources || "none"}`);
+  console.log("\n✨ Done!");
+
+  return summary;
 }
 
 // Run the script if called directly

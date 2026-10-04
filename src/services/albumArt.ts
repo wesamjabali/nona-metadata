@@ -5,14 +5,24 @@
  *  1. iTunes + Deezer — key-less, high-resolution artwork and the best
  *     coverage for both English and Arabic/MENA releases. Both are queried in
  *     parallel with "artist album".
- *  2. The same two providers widened with hints derived from the source media
- *     (e.g. the YouTube video title / uploader), which rescues albums whose
- *     stored name differs from the provider's edition name.
- *  3. MusicBrainz / Cover Art Archive + Discogs — free community databases,
+ *  2. The same two providers asked for the *track* instead ("artist track",
+ *     iTunes `entity=song` / Deezer `/search/track`). A track result carries the
+ *     album it belongs to, which is the only way to get art when the stored
+ *     album name is missing or wrong — a folder called "Unknown Album" has
+ *     nothing else to match on.
+ *  3. The same two providers widened with hints derived from the source media
+ *     (e.g. the YouTube video title / uploader), which rescues albums and tracks
+ *     whose stored name differs from the provider's edition name.
+ *  4. MusicBrainz / Cover Art Archive + Discogs — free community databases,
  *     weaker on Arabic material, only used when the above fail.
- *  4. The caller-supplied fallback image(s) — typically the source video's
+ *  5. The caller-supplied fallback image(s) — typically the source video's
  *     thumbnail, including the deterministic YouTube variants — so a folder at
  *     least gets *some* artwork.
+ *  6. A generated placeholder cover (gradient + artist/album text), when the
+ *     caller asks for one. This is what guarantees a folder is never blank: a
+ *     real cover always wins, but "no artwork at all" stops being an outcome.
+ *     Generated covers are marked on disk so a later run can still replace them
+ *     with the real thing.
  *
  * Every provider candidate is scored against the requested artist/album by
  * `utils/musicMatching.ts` before its image is downloaded. Being wrong is worse
@@ -21,15 +31,25 @@
  */
 
 import { removeFileExtension } from "../utils/file.js";
-import type { AlbumArtCandidate, AlbumArtQuery } from "./albumArtProviders.js";
+import type {
+  AlbumArtCandidate,
+  AlbumArtProvider,
+  AlbumArtQuery,
+  ScoredAlbumArtCandidate,
+  TrackArtQuery,
+} from "./albumArtProviders.js";
 import {
   dedupeCandidates,
   rankCandidates,
+  rankTrackCandidates,
   searchDeezerCandidates,
+  searchDeezerTrackCandidates,
   searchDiscogsCandidates,
   searchItunesCandidates,
+  searchItunesTrackCandidates,
   searchMusicBrainzCandidates,
 } from "./albumArtProviders.js";
+import { generatePlaceholderArt } from "./albumArtPlaceholder.js";
 
 const USER_AGENT =
   "nona-metadata/1.0.0 (https://github.com/nona-metadata/nona-metadata)";
@@ -74,12 +94,40 @@ export interface FetchAlbumArtOptions extends AlbumArtSourceContext {
    * source URL) are not paid for albums that already matched.
    */
   resolveSourceContext?: () => Promise<AlbumArtSourceContext>;
+  /**
+   * Track title, which enables the track-level rescue described above. Pass it
+   * only when the folder holds that single track: attributing one track's
+   * cover to a multi-track folder would be a guess, not a match.
+   */
+  trackTitle?: string;
+  /**
+   * Draw a placeholder cover when neither a provider nor a thumbnail produced
+   * anything. Off by default, so a caller that would rather have no art than
+   * invented art can say so.
+   */
+  allowGeneratedArt?: boolean;
+  /**
+   * Text drawn on the generated cover. Defaults to the album name, then the
+   * track title, then "Singles" — never the literal "Unknown Album".
+   */
+  placeholderLabel?: string;
 }
 
 /** A downloaded image with its MIME type. */
 export interface DownloadedImage {
   data: ArrayBuffer;
   contentType: string;
+}
+
+/** Where a cover came from, which is how callers recognise generated art. */
+export type AlbumArtSource = AlbumArtProvider | "thumbnail" | "generated";
+
+/** A downloaded cover plus its provenance. */
+export interface AlbumArtResult extends DownloadedImage {
+  /** Which step of the chain produced this image. */
+  source: AlbumArtSource;
+  /** Human-readable provenance, for logs and job results. */
+  description: string;
 }
 
 /**
@@ -229,40 +277,74 @@ async function gatherCandidates(
 }
 
 /**
- * Downloads the highest-scoring trustworthy candidate.
+ * Downloads the best of the already-ranked candidates.
  *
- * Candidates are ranked by match score, then each of their image URLs is tried
- * in order (a high-resolution URL may 404 even when a smaller one exists).
- * @param candidates The raw provider candidates.
- * @param query The album being searched for.
- * @returns The downloaded image, or null when nothing scored/downloaded.
+ * Each candidate's image URLs are tried in order (a high-resolution URL may 404
+ * even when a smaller one exists), so one dead image does not lose the match.
+ * @param ranked Trusted candidates, best first.
+ * @returns The downloaded image and its provenance, or null when every image
+ * failed to download.
  */
-async function downloadBestCandidate(
-  candidates: AlbumArtCandidate[],
-  query: AlbumArtQuery,
-): Promise<DownloadedImage | null> {
-  const ranked = rankCandidates(candidates, query);
-
+async function downloadRankedCandidates(
+  ranked: ScoredAlbumArtCandidate[],
+): Promise<AlbumArtResult | null> {
   for (const { candidate, score } of ranked) {
     for (const url of candidate.imageUrls) {
       const image = await fetchImageFromUrl(url);
 
       if (image) {
+        const matched = candidate.track
+          ? `${candidate.track} (album "${candidate.album}")`
+          : `"${candidate.album}"`;
+
         console.log(
-          `Album art: matched via ${candidate.provider} — "${candidate.album}" by "${candidate.artist}" (score ${score.combined.toFixed(
+          `Album art: matched via ${candidate.provider} — ${matched} by "${candidate.artist}" (score ${score.combined.toFixed(
             2,
-          )}, artist ${score.artist.toFixed(2)}, album ${score.album.toFixed(2)})`,
+          )}, artist ${score.artist.toFixed(2)}, title ${score.album.toFixed(2)})`,
         );
-        return image;
+
+        return {
+          ...image,
+          source: candidate.provider,
+          description: `${candidate.provider}: ${matched} by ${candidate.artist}`,
+        };
       }
     }
 
     console.warn(
-      `Album art: ${candidate.provider} candidate "${candidate.album}" had no downloadable image, trying next...`,
+      `Album art: ${candidate.provider} candidate "${
+        candidate.track ?? candidate.album
+      }" had no downloadable image, trying next...`,
     );
   }
 
   return null;
+}
+
+/**
+ * Ranks album-level candidates and downloads the best one.
+ * @param candidates The raw provider candidates.
+ * @param query The album being searched for.
+ * @returns The downloaded image and its provenance, or null.
+ */
+async function downloadAlbumCover(
+  candidates: AlbumArtCandidate[],
+  query: AlbumArtQuery,
+): Promise<AlbumArtResult | null> {
+  return downloadRankedCandidates(rankCandidates(candidates, query));
+}
+
+/**
+ * Ranks track-level candidates and downloads the best one.
+ * @param candidates The raw provider candidates.
+ * @param query The track being searched for.
+ * @returns The downloaded image and its provenance, or null.
+ */
+async function downloadTrackCover(
+  candidates: AlbumArtCandidate[],
+  query: TrackArtQuery,
+): Promise<AlbumArtResult | null> {
+  return downloadRankedCandidates(rankTrackCandidates(candidates, query));
 }
 
 /**
@@ -281,34 +363,79 @@ function collectFallbackImageUrls(context: AlbumArtSourceContext): string[] {
 /**
  * Fetches album art for a given artist and album.
  * @param artist The artist's name.
- * @param album The album's title.
- * @param options Optional source-media hints and fallback image URLs.
- * @returns The image data + content type, or null if nothing suitable was found.
+ * @param album The album's title. May be empty or the placeholder name
+ * "Unknown Album" — the track-level step covers those cases.
+ * @param options Source-media hints, track title, fallback image URLs, and the
+ * switch that allows a generated cover as the final fallback.
+ * @returns The image data, its content type and where it came from, or null if
+ * nothing suitable was found.
  */
 export async function fetchAlbumArt(
   artist: string,
   album: string,
   options: FetchAlbumArtOptions = {},
-): Promise<DownloadedImage | null> {
-  const query: AlbumArtQuery = { artist: artist.trim(), album: album.trim() };
+): Promise<AlbumArtResult | null> {
+  const artistName = (artist ?? "").trim();
+  const albumName = (album ?? "").trim();
+  const trackTitle = options.trackTitle?.trim() || null;
 
-  if (!query.artist || !query.album) {
+  if (!artistName) {
     return null;
   }
 
-  console.log(
-    `Album art: searching for "${query.album}" by "${query.artist}"...`,
-  );
+  // "Unknown Album" is a real folder with a useless name: it cannot match
+  // anything at a provider, so it is skipped rather than searched for.
+  const hasSearchableAlbum =
+    albumName.length > 0 && albumName !== "Unknown Album";
 
-  // Phase 1: key-less providers with the strongest English + Arabic catalogues.
-  const primaryCandidates = await gatherCandidates([
-    searchItunesCandidates(query),
-    searchDeezerCandidates(query),
-  ]);
+  if (hasSearchableAlbum) {
+    const albumQuery: AlbumArtQuery = { artist: artistName, album: albumName };
 
-  const primaryImage = await downloadBestCandidate(primaryCandidates, query);
-  if (primaryImage) {
-    return primaryImage;
+    console.log(
+      `Album art: searching for "${albumName}" by "${artistName}"...`,
+    );
+
+    // Phase 1: key-less providers with the strongest English + Arabic catalogues.
+    const primaryCandidates = await gatherCandidates([
+      searchItunesCandidates(albumQuery),
+      searchDeezerCandidates(albumQuery),
+    ]);
+
+    const primaryImage = await downloadAlbumCover(
+      primaryCandidates,
+      albumQuery,
+    );
+    if (primaryImage) {
+      return primaryImage;
+    }
+  }
+
+  /**
+   * Phase 2 (and its widened repeat in phase 3): search for the track itself and
+   * use the artwork of the release it belongs to.
+   * @param terms Search terms to use instead of the default "artist track".
+   * @returns The downloaded cover, or null when there is no track title or no
+   * trustworthy match.
+   */
+  const resolveTrackCover = async (
+    terms?: string[],
+  ): Promise<AlbumArtResult | null> => {
+    if (!trackTitle) {
+      return null;
+    }
+
+    const trackQuery: TrackArtQuery = { artist: artistName, track: trackTitle };
+    const candidates = await gatherCandidates([
+      searchItunesTrackCandidates(trackQuery, terms),
+      searchDeezerTrackCandidates(trackQuery, terms),
+    ]);
+
+    return downloadTrackCover(candidates, trackQuery);
+  };
+
+  const trackImage = await resolveTrackCover();
+  if (trackImage) {
+    return trackImage;
   }
 
   // Resolve source-media context only now that the fast providers have missed,
@@ -341,11 +468,14 @@ export async function fetchAlbumArt(
   };
 
   const sourceContext = await loadSourceContext();
+  const extraTerms = buildExtraSearchTerms(
+    { artist: artistName, album: albumName || trackTitle || "" },
+    sourceContext.hints,
+  );
 
-  // Phase 2: retry with terms taken from the source media. This helps when the
-  // stored album name differs from the provider's edition name, and gives
-  // Arabic releases an alternative spelling to match on.
-  const extraTerms = buildExtraSearchTerms(query, sourceContext.hints);
+  // Phase 3: widen both searches with terms taken from the source media. This
+  // helps when the stored name differs from the provider's edition name, and
+  // gives Arabic releases an alternative spelling to match on.
   if (extraTerms.length > 0) {
     console.log(
       `Album art: no confident match, widening search with: ${extraTerms.join(
@@ -353,33 +483,47 @@ export async function fetchAlbumArt(
       )}`,
     );
 
-    const widenedCandidates = await gatherCandidates([
-      searchItunesCandidates(query, extraTerms),
-      searchDeezerCandidates(query, extraTerms),
-    ]);
+    const widenedTrackImage = await resolveTrackCover(extraTerms);
+    if (widenedTrackImage) {
+      return widenedTrackImage;
+    }
 
-    const widenedImage = await downloadBestCandidate(widenedCandidates, query);
-    if (widenedImage) {
-      return widenedImage;
+    if (hasSearchableAlbum) {
+      const albumQuery: AlbumArtQuery = { artist: artistName, album: albumName };
+      const widenedCandidates = await gatherCandidates([
+        searchItunesCandidates(albumQuery, extraTerms),
+        searchDeezerCandidates(albumQuery, extraTerms),
+      ]);
+
+      const widenedImage = await downloadAlbumCover(
+        widenedCandidates,
+        albumQuery,
+      );
+      if (widenedImage) {
+        return widenedImage;
+      }
     }
   }
 
-  // Phase 3: community databases. Lower coverage (especially for Arabic
+  // Phase 4: community databases. Lower coverage (especially for Arabic
   // releases) but occasionally the only source, so still verified by score.
-  const secondaryCandidates = await gatherCandidates([
-    searchMusicBrainzCandidates(query),
-    searchDiscogsCandidates(query),
-  ]);
+  if (hasSearchableAlbum) {
+    const albumQuery: AlbumArtQuery = { artist: artistName, album: albumName };
+    const secondaryCandidates = await gatherCandidates([
+      searchMusicBrainzCandidates(albumQuery),
+      searchDiscogsCandidates(albumQuery),
+    ]);
 
-  const secondaryImage = await downloadBestCandidate(
-    secondaryCandidates,
-    query,
-  );
-  if (secondaryImage) {
-    return secondaryImage;
+    const secondaryImage = await downloadAlbumCover(
+      secondaryCandidates,
+      albumQuery,
+    );
+    if (secondaryImage) {
+      return secondaryImage;
+    }
   }
 
-  // Phase 4: the source video's thumbnail. Several URLs may be offered (e.g.
+  // Phase 5: the source video's thumbnail. Several URLs may be offered (e.g.
   // YouTube's maxres/sd/hq variants) because the highest resolution is not
   // published for every video — the first one that downloads wins.
   const fallbackUrls = collectFallbackImageUrls(sourceContext);
@@ -395,7 +539,11 @@ export async function fetchAlbumArt(
 
       if (image) {
         console.log(`Album art: using fallback image: ${url}`);
-        return image;
+        return {
+          ...image,
+          source: "thumbnail",
+          description: `source thumbnail: ${url}`,
+        };
       }
 
       console.warn(
@@ -404,8 +552,25 @@ export async function fetchAlbumArt(
     }
   }
 
+  // Phase 6: draw one, so a folder is never left blank.
+  if (options.allowGeneratedArt) {
+    const label =
+      options.placeholderLabel?.trim() ||
+      (hasSearchableAlbum ? albumName : trackTitle) ||
+      "Singles";
+
+    const generated = await generatePlaceholderArt(artistName, label);
+    if (generated) {
+      return {
+        ...generated,
+        source: "generated",
+        description: `generated cover: ${artistName} — ${label}`,
+      };
+    }
+  }
+
   console.log(
-    `Album art: no artwork found for "${query.album}" by "${query.artist}"`,
+    `Album art: no artwork found for "${albumName || trackTitle}" by "${artistName}"`,
   );
   return null;
 }

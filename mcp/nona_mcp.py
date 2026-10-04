@@ -874,6 +874,96 @@ def format_result(payload: dict) -> str:
     return "\n".join(lines)
 
 
+def backfill_album_art(wait: bool = True, timeout: float = 3600,
+                       base_url=None) -> dict:
+    """Give every album folder in the library a cover.
+
+    Nona resolves each folder's art in order of trust: an iTunes/Deezer match for
+    the album, then for the track, then the source video's thumbnail, and finally
+    a generated cover. Folders that already have (real) artwork are left alone,
+    and folders whose cover is a generated placeholder are retried, so this is
+    safe and cheap to re-run.
+    """
+    job = api_post("/fetch-album-art", base_url=base_url)
+    job_id = job.get("jobId")
+    out = {"job": job, "result": None}
+    if wait and job_id:
+        out["result"] = wait_for_job(job_id, timeout=timeout, base_url=base_url)
+    return out
+
+
+def album_art_state(base_url=None) -> dict:
+    """Report which album folders have no cover at all.
+
+    Derived from the file listing: a folder is missing art when it holds audio
+    but no `cover.*`. Whether an existing cover is real or generated is recorded
+    on the server (under its cache directory), not in the listing, so this reports
+    what is verifiable from the API — the state before and after a backfill.
+    """
+    files = api_get("/files", base_url=base_url).get("files", [])
+    folders: dict[str, dict] = {}
+    for path in files:
+        parts = path.split("/")
+        if len(parts) < 3:
+            continue
+        folder = "/".join(parts[:2])
+        entry = folders.setdefault(folder, {"folder": folder, "tracks": 0,
+                                            "cover": False})
+        name = parts[-1].lower()
+        if name.startswith("cover."):
+            entry["cover"] = True
+        elif name.endswith(AUDIO_EXTENSIONS):
+            entry["tracks"] += 1
+
+    missing = sorted(e["folder"] for e in folders.values()
+                     if e["tracks"] and not e["cover"])
+
+    return {
+        "folders": len(folders),
+        "withCover": sum(1 for e in folders.values() if e["cover"]),
+        "missing": missing,
+        "missingCount": len(missing),
+    }
+
+
+def format_art(payload: dict) -> str:
+    """Human-readable report for an album-art backfill job."""
+    job = payload.get("job") or {}
+    result = payload.get("result") or {}
+
+    lines = [f"Job       : {job.get('jobId')}"]
+    lines.append(f"Status    : {result.get('status') or job.get('status')}")
+
+    summary = result.get("albumArtResults") or {}
+    if summary:
+        lines.append(f"Folders   : {summary.get('processed')} processed")
+        lines.append(
+            f"Covers    : {summary.get('fetched')} written"
+            f" ({summary.get('upgraded')} replaced a generated placeholder)"
+        )
+        lines.append(f"Existing  : {summary.get('existed')} already had artwork")
+        lines.append(f"Skipped   : {summary.get('skipped')} (nothing to search with)")
+        lines.append(f"No art    : {summary.get('failed')}")
+        by_source = summary.get("bySource") or {}
+        if by_source:
+            lines.append(
+                "Sources   : "
+                + ", ".join(f"{key}: {value}" for key, value in sorted(by_source.items()))
+            )
+
+    progress = result.get("progress") or {}
+    if progress:
+        lines.append(
+            f"Progress  : {progress.get('completed')}/{progress.get('total')}"
+            f" ({progress.get('failed')} failed)"
+        )
+
+    for err in result.get("errors") or []:
+        lines.append(f"Error     : {err}")
+
+    return "\n".join(lines)
+
+
 # --------------------------------------------------------------------------- #
 # MCP server
 # --------------------------------------------------------------------------- #
@@ -959,6 +1049,23 @@ def build_mcp_server():
     def music_job(job_id: str) -> str:
         """Get the status and result of a Nona processing job."""
         return json.dumps(get_job(job_id), ensure_ascii=False, indent=2)
+
+    @mcp.tool()
+    def album_art_backfill(wait: bool = True, timeout_seconds: int = 3600) -> str:
+        """Give every album folder in the library artwork.
+
+        Resolves each folder in order of trust — an iTunes/Deezer match for the
+        album, then for the track, then the source video's thumbnail, then a
+        generated cover — so nothing is left blank. Folders that already have real
+        artwork are skipped, and folders holding a generated placeholder are
+        retried and upgraded if real art is now available. Safe to re-run.
+
+        Args:
+            wait: Block until the pass finishes (a whole library can take minutes).
+            timeout_seconds: Max wait when wait=True.
+        """
+        payload = backfill_album_art(wait=wait, timeout=float(timeout_seconds))
+        return format_art(payload) + "\n\n" + json.dumps(payload, ensure_ascii=False)
 
     @mcp.tool()
     def music_jobs(limit: int = 10) -> str:
@@ -1059,6 +1166,15 @@ def main(argv=None) -> int:
 
     p = sub.add_parser("stats", help="cache + library stats")
 
+    p = sub.add_parser("art",
+                       help="give every album folder a cover (real art first)")
+    p.add_argument("--timeout", type=float, default=3600)
+    p.add_argument("--no-wait", action="store_true")
+    p.add_argument("--json", action="store_true", help="machine-readable output")
+
+    p = sub.add_parser("art-missing",
+                       help="list album folders that have no cover at all")
+
     p = sub.add_parser("serve", help="run the stdio MCP server")
 
     args = parser.parse_args(argv)
@@ -1133,6 +1249,24 @@ def main(argv=None) -> int:
             _print(list_files(args.query))
         elif args.cmd == "stats":
             _print(library_stats())
+        elif args.cmd == "art":
+            payload = backfill_album_art(
+                wait=not args.no_wait, timeout=args.timeout
+            )
+            if args.json:
+                _print(payload)
+            else:
+                print(format_art(payload))
+                if not payload.get("result"):
+                    _print(payload["job"])
+        elif args.cmd == "art-missing":
+            state = album_art_state()
+            print(
+                f"{state['withCover']}/{state['folders']} album folders have a cover;"
+                f" {state['missingCount']} have none"
+            )
+            for folder in state["missing"]:
+                print(f"  {folder}")
     except NonaError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

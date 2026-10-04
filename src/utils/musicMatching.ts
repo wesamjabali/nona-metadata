@@ -268,6 +268,18 @@ export const MIN_ARTIST_MATCH_SCORE = 0.4;
 export const MIN_ALBUM_TITLE_MATCH_SCORE = 0.45;
 
 /**
+ * Minimum track-title similarity required before track-level artwork is
+ * trusted.
+ *
+ * Higher than the album floor on purpose: a track-level hit exists to cover a
+ * *missing* album name, so nothing else corroborates it, and a provider will
+ * happily return a different song by the same artist. An exact title match is
+ * the normal case (providers spell tracks the way they were released), so
+ * demanding one costs almost nothing and keeps lookalike titles out.
+ */
+export const MIN_TRACK_TITLE_MATCH_SCORE = 0.6;
+
+/**
  * Minimum weighted {@link AlbumMatchScore.combined} required before provider
  * art is trusted. Below this we prefer no art (or the video thumbnail
  * fallback) over confidently wrong art.

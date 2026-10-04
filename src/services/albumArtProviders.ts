@@ -25,6 +25,7 @@ import {
   MIN_ALBUM_MATCH_SCORE,
   MIN_ALBUM_TITLE_MATCH_SCORE,
   MIN_ARTIST_MATCH_SCORE,
+  MIN_TRACK_TITLE_MATCH_SCORE,
   scoreAlbumMatch,
 } from "../utils/musicMatching.js";
 
@@ -39,6 +40,18 @@ export interface AlbumArtQuery {
   album: string;
 }
 
+/**
+ * A single track we are looking for.
+ *
+ * This is how albums named "Unknown Album" get artwork at all: there is no
+ * album to search for, but the artist + track title identify a release whose
+ * cover can be used.
+ */
+export interface TrackArtQuery {
+  artist: string;
+  track: string;
+}
+
 /** A provider result: metadata to score plus one or more image URLs to try. */
 export interface AlbumArtCandidate {
   provider: AlbumArtProvider;
@@ -46,6 +59,8 @@ export interface AlbumArtCandidate {
   id: string;
   artist: string;
   album: string;
+  /** Track title, present on candidates that came from a track-level search. */
+  track?: string;
   /** Image URLs to try in order, best quality first. */
   imageUrls: string[];
 }
@@ -86,11 +101,88 @@ class RequestThrottle {
   }
 }
 
-const itunesThrottle = new RequestThrottle(350);
+const itunesThrottle = new RequestThrottle(800);
 const deezerThrottle = new RequestThrottle(200);
 const musicBrainzThrottle = new RequestThrottle(1100);
 // 2s keeps us inside Discogs' stricter unauthenticated limit (25 req/min).
 const discogsThrottle = new RequestThrottle(2000);
+
+/**
+ * When iTunes is throttling us, it is left alone until this timestamp.
+ *
+ * A single throttling answer applies to the whole client, not to one query: the
+ * limit is per address and shared with every search in the run. Without this,
+ * each of the hundreds of folders in a backfill would spend two requests and a
+ * 2.5s pause rediscovering the same block.
+ */
+let itunesThrottledUntil = 0;
+
+/** How long to leave iTunes alone after it throttles (it sends no Retry-After). */
+const ITUNES_COOLDOWN_MS = 10 * 60 * 1000;
+
+/**
+ * Runs one iTunes search request, retrying once when Apple pushes back.
+ *
+ * iTunes answers 403/429 rather than 5xx when a client is going too fast (it
+ * does not send `Retry-After`), so an unretried failure silently turns into
+ * "no cover found" for an album that is perfectly searchable. The caller also
+ * learns that the provider is throttling, so it can stop fanning out over
+ * storefronts — continuing to hammer Apple is what turns a soft limit into a
+ * hard block that lasts for the rest of the run.
+ * @param url The fully built search URL.
+ * @param label What is being searched for, for the log line.
+ * @returns The parsed body (or null) and whether the provider is throttling us.
+ */
+async function requestItunesSearch<T>(
+  url: string,
+  label: string,
+): Promise<{ data: T | null; rateLimited: boolean }> {
+  if (Date.now() < itunesThrottledUntil) {
+    return { data: null, rateLimited: true };
+  }
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const response = await fetch(url, {
+        headers: { "User-Agent": USER_AGENT },
+      });
+
+      if (response.ok) {
+        return { data: (await response.json()) as T, rateLimited: false };
+      }
+
+      const throttled = response.status === 429 || response.status === 403;
+      const retryable = throttled || response.status >= 500;
+
+      console.warn(
+        `iTunes search failed (${response.status} ${response.statusText}) for "${label}"${
+          retryable && attempt === 0 ? " — retrying once" : ""
+        }`,
+      );
+
+      if (!retryable || attempt === 1) {
+        if (throttled) {
+          itunesThrottledUntil = Date.now() + ITUNES_COOLDOWN_MS;
+          console.warn(
+            `iTunes is throttling this client; skipping it for ${
+              ITUNES_COOLDOWN_MS / 60000
+            } minutes and falling back to the other providers.`,
+          );
+        }
+        return { data: null, rateLimited: throttled };
+      }
+    } catch (error) {
+      console.warn(`iTunes search error for "${label}":`, error);
+      if (attempt === 1) {
+        return { data: null, rateLimited: false };
+      }
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 2500));
+  }
+
+  return { data: null, rateLimited: false };
+}
 
 /** Caches search results so a multi-track album only queries once per term. */
 const itunesCache = new Map<string, AlbumArtCandidate[]>();
@@ -166,6 +258,56 @@ export function rankCandidates(
   return scored.sort((a, b) => b.score.combined - a.score.combined);
 }
 
+/**
+ * Ranks track-level candidates by match score, applying the stricter track
+ * title floor.
+ *
+ * The candidate's track title is what must line up; albums are not compared here
+ * because the whole point of this path is that we do not know (or cannot trust)
+ * the album name.
+ * @param candidates The candidates to rank.
+ * @param query The track being searched for.
+ * @param minScore Minimum combined score to trust (defaults to the shared threshold).
+ * @returns Trusted candidates, best first.
+ */
+export function rankTrackCandidates(
+  candidates: AlbumArtCandidate[],
+  query: TrackArtQuery,
+  minScore: number = MIN_ALBUM_MATCH_SCORE,
+): ScoredAlbumArtCandidate[] {
+  const scored: ScoredAlbumArtCandidate[] = [];
+
+  for (const candidate of candidates) {
+    const candidateTrack = candidate.track ?? candidate.album;
+    const score = scoreAlbumMatch(
+      query.artist,
+      query.track,
+      candidate.artist,
+      candidateTrack,
+    );
+
+    const trusted =
+      score.combined >= minScore &&
+      score.artist >= MIN_ARTIST_MATCH_SCORE &&
+      score.album >= MIN_TRACK_TITLE_MATCH_SCORE;
+
+    if (!trusted) {
+      if (score.combined >= 0.35) {
+        console.log(
+          `Album art: rejecting ${candidate.provider} track "${candidateTrack}" by "${candidate.artist}" (score ${score.combined.toFixed(
+            2,
+          )}, artist ${score.artist.toFixed(2)}, title ${score.album.toFixed(2)})`,
+        );
+      }
+      continue;
+    }
+
+    scored.push({ candidate, score });
+  }
+
+  return scored.sort((a, b) => b.score.combined - a.score.combined);
+}
+
 // ---------------------------------------------------------------------------
 // iTunes Search API
 // ---------------------------------------------------------------------------
@@ -177,11 +319,26 @@ interface ITunesAlbum {
   artworkUrl100?: string;
 }
 
+interface ITunesTrack {
+  trackId?: number;
+  collectionId?: number;
+  artistName?: string;
+  collectionName?: string;
+  trackName?: string;
+  artworkUrl100?: string;
+}
+
 /**
- * iTunes storefronts to try. The US storefront indexes most Arabic releases,
- * but region-locked albums are only visible in their own storefront.
+ * iTunes storefronts to try, in order. The US storefront indexes most Arabic
+ * releases; regional storefronts exist for region-locked albums.
+ *
+ * This list is deliberately short: every extra storefront is another request for
+ * every search that finds nothing, and iTunes starts answering 403/429 once a
+ * pass hammers it — which is exactly what happens while backfilling a library.
+ * US (catalogue breadth) plus the two largest MENA storefronts covers the cases
+ * that matter here.
  */
-const ITUNES_STOREFRONTS = ["us", "ae", "eg", "sa", "ma", "fr", "gb"];
+const ITUNES_STOREFRONTS = ["us", "ae", "eg"];
 
 /**
  * Rewrites an iTunes artwork URL to a larger size (the API only returns
@@ -221,14 +378,28 @@ export async function searchItunesCandidates(
         results = await itunesThrottle.schedule(() =>
           requestItunes(term, storefront),
         );
+        // A throttled storefront answers for every storefront: caching the
+        // empty result is correct, and the next term stops early too.
         itunesCache.set(cacheKey, results);
       }
 
       candidates.push(...results);
+
+      if (results.length === 0 && isItunesThrottled()) {
+        break;
+      }
     }
   }
 
   return dedupeCandidates(candidates);
+}
+
+/**
+ * Reports whether iTunes is currently throttling this client.
+ * @returns True while the cooldown after a 403/429 is in effect.
+ */
+function isItunesThrottled(): boolean {
+  return Date.now() < itunesThrottledUntil;
 }
 
 async function requestItunes(
@@ -242,48 +413,126 @@ async function requestItunes(
     country: storefront,
   }).toString()}`;
 
-  try {
-    const response = await fetch(url, {
-      headers: { "User-Agent": USER_AGENT },
-    });
+  const data = await requestItunesSearch<{ results?: ITunesAlbum[] }>(
+    url,
+    `${term} [${storefront}]`,
+  );
 
-    if (!response.ok) {
-      console.warn(
-        `iTunes search failed (${response.status} ${response.statusText}) for "${term}" [${storefront}]`,
-      );
-      return [];
-    }
-
-    const data = (await response.json()) as { results?: ITunesAlbum[] };
-
-    return (data.results ?? [])
-      .filter(
-        (album) =>
-          !!album.collectionName && !!album.artistName && !!album.artworkUrl100,
-      )
-      .map((album) => ({
-        provider: "itunes" as const,
-        id: String(album.collectionId ?? album.collectionName),
-        artist: album.artistName as string,
-        album: album.collectionName as string,
-        imageUrls: [upgradeItunesArtwork(album.artworkUrl100 as string)],
-      }));
-  } catch (error) {
-    console.warn(`iTunes search error for "${term}":`, error);
+  if (!data.data) {
     return [];
   }
+
+  return (data.data.results ?? [])
+    .filter(
+      (album) =>
+        !!album.collectionName && !!album.artistName && !!album.artworkUrl100,
+    )
+    .map((album) => ({
+      provider: "itunes" as const,
+      id: String(album.collectionId ?? album.collectionName),
+      artist: album.artistName as string,
+      album: album.collectionName as string,
+      imageUrls: [upgradeItunesArtwork(album.artworkUrl100 as string)],
+    }));
+}
+
+/**
+ * Looks up track candidates in the iTunes Search API.
+ *
+ * A song result carries the album it belongs to and that album's artwork, which
+ * is the only way to get artwork for a track whose stored album name is missing
+ * or wrong — album-level search has nothing to match on in that case.
+ * @param query The track to search for.
+ * @param terms Optional free-text terms to try instead of "artist track".
+ * @returns Scored-ready candidates (possibly empty).
+ */
+export async function searchItunesTrackCandidates(
+  query: TrackArtQuery,
+  terms?: string[],
+): Promise<AlbumArtCandidate[]> {
+  const searchTerms =
+    terms && terms.length > 0 ? terms : [`${query.artist} ${query.track}`];
+  const candidates: AlbumArtCandidate[] = [];
+
+  for (const term of searchTerms) {
+    for (const storefront of ITUNES_STOREFRONTS) {
+      if (storefront !== "us" && candidates.length > 0) {
+        break;
+      }
+
+      const results = await itunesThrottle.schedule(() =>
+        requestItunesTracks(term, storefront),
+      );
+
+      candidates.push(...results);
+
+      if (results.length === 0 && isItunesThrottled()) {
+        break;
+      }
+    }
+  }
+
+  return dedupeCandidates(candidates);
+}
+
+async function requestItunesTracks(
+  term: string,
+  storefront: string,
+): Promise<AlbumArtCandidate[]> {
+  const url = `https://itunes.apple.com/search?${new URLSearchParams({
+    term,
+    entity: "song",
+    limit: "10",
+    country: storefront,
+  }).toString()}`;
+
+  const data = await requestItunesSearch<{ results?: ITunesTrack[] }>(
+    url,
+    `${term} [${storefront}]`,
+  );
+
+  if (!data.data) {
+    return [];
+  }
+
+  return (data.data.results ?? [])
+    .filter(
+      (track) =>
+        !!track.trackName &&
+        !!track.artistName &&
+        !!track.artworkUrl100 &&
+        !!track.collectionName,
+    )
+    .map((track) => ({
+      provider: "itunes" as const,
+      id: String(track.trackId ?? `${track.collectionId}:${track.trackName}`),
+      artist: track.artistName as string,
+      album: track.collectionName as string,
+      track: track.trackName as string,
+      imageUrls: [upgradeItunesArtwork(track.artworkUrl100 as string)],
+    }));
 }
 
 // ---------------------------------------------------------------------------
 // Deezer API
 // ---------------------------------------------------------------------------
-
 interface DeezerAlbum {
   id?: number;
   title?: string;
   artist?: { name?: string };
   cover_xl?: string;
   cover_big?: string;
+}
+
+interface DeezerTrack {
+  id?: number;
+  title?: string;
+  artist?: { name?: string };
+  album?: {
+    title?: string;
+    cover_xl?: string;
+    cover_big?: string;
+  };
 }
 
 /**
@@ -363,10 +612,90 @@ async function requestDeezer(term: string): Promise<AlbumArtCandidate[]> {
   }
 }
 
+/**
+ * Looks up track candidates in the key-less Deezer API.
+ *
+ * Deezer's MENA catalogue is often the only source for Arabic releases, and a
+ * track result carries its album artwork — same rescue as the iTunes track path.
+ * @param query The track to search for.
+ * @param terms Optional free-text terms to try instead of "artist track".
+ * @returns Scored-ready candidates (possibly empty).
+ */
+export async function searchDeezerTrackCandidates(
+  query: TrackArtQuery,
+  terms?: string[],
+): Promise<AlbumArtCandidate[]> {
+  const searchTerms =
+    terms && terms.length > 0 ? terms : [`${query.artist} ${query.track}`];
+  const candidates: AlbumArtCandidate[] = [];
+
+  for (const term of searchTerms) {
+    const results = await deezerThrottle.schedule(() =>
+      requestDeezerTracks(term),
+    );
+    candidates.push(...results);
+  }
+
+  return dedupeCandidates(candidates);
+}
+
+async function requestDeezerTracks(
+  term: string,
+): Promise<AlbumArtCandidate[]> {
+  const url = `https://api.deezer.com/search/track?${new URLSearchParams({
+    q: term,
+    limit: "10",
+  }).toString()}`;
+
+  try {
+    const response = await fetch(url, {
+      headers: { "User-Agent": USER_AGENT },
+    });
+
+    if (!response.ok) {
+      console.warn(
+        `Deezer track search failed (${response.status} ${response.statusText}) for "${term}"`,
+      );
+      return [];
+    }
+
+    const data = (await response.json()) as {
+      data?: DeezerTrack[];
+      error?: unknown;
+    };
+
+    if (data.error || !Array.isArray(data.data)) {
+      console.warn(`Deezer track search returned an error payload for "${term}"`);
+      return [];
+    }
+
+    return data.data
+      .filter(
+        (track) =>
+          !!track.title &&
+          !!track.artist?.name &&
+          !!track.album?.title &&
+          !!(track.album?.cover_xl ?? track.album?.cover_big),
+      )
+      .map((track) => ({
+        provider: "deezer" as const,
+        id: String(track.id ?? track.title),
+        artist: track.artist?.name as string,
+        album: track.album?.title as string,
+        track: track.title as string,
+        imageUrls: [
+          track.album?.cover_xl ?? track.album?.cover_big ?? "",
+        ].filter(Boolean),
+      }));
+  } catch (error) {
+    console.warn(`Deezer track search error for "${term}":`, error);
+    return [];
+  }
+}
+
 // ---------------------------------------------------------------------------
 // MusicBrainz + Cover Art Archive
 // ---------------------------------------------------------------------------
-
 interface MusicBrainzRelease {
   id?: string;
   title?: string;

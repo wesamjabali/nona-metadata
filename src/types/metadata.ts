@@ -20,5 +20,5 @@ export type {
   ProcessingJob,
   ProcessVideoRequest,
   ProcessVideoResponse,
-  SidecarResults,
+  AlbumArtJobResults,
 } from "../../shared/types.js";

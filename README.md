@@ -222,14 +222,25 @@ You can also run the backfill directly without the server:
 bun run src/scripts/fetchAlbumArtForExisting.ts
 ```
 
+To see what a pass *would* do before running it — and to check afterwards that it
+did — audit the library read-only:
+
+```bash
+bun run src/scripts/auditAlbumArt.ts             # state of every folder
+bun run src/scripts/auditAlbumArt.ts --resolve   # + what each art-less folder would get
+```
+
 Providers are tried in order of precision and every candidate is scored against
 the requested artist/album before it is downloaded (wrong artwork is worse than
 none):
 
-1. iTunes + Deezer
-2. iTunes + Deezer widened with hints from the source video (title/uploader)
-3. MusicBrainz / Cover Art Archive + Discogs
-4. The source video's thumbnail
+1. iTunes + Deezer for the album
+2. iTunes + Deezer for the **track** — a song result carries the album it belongs
+   to, which is the only way to get art for a folder named `Unknown Album`
+3. iTunes + Deezer widened with hints from the source video (title/uploader)
+4. MusicBrainz / Cover Art Archive + Discogs
+5. The source video's thumbnail
+6. A **generated cover** — the last resort, so a folder is never left blank
 
 The thumbnail fallback reads the `Source: <url>` value the pipeline writes to
 each file's `comment` tag, e.g.
@@ -239,7 +250,21 @@ sources the thumbnail URLs are derived directly from the video ID
 it even works for removed/private videos, or when yt-dlp cannot reach YouTube.
 Placeholder images that YouTube serves for unavailable videos are rejected
 rather than saved. Files with no source URL (processed before the comment tag
-existed) simply skip the fallback and still get provider artwork.
+existed) simply skip the fallback.
+
+The generated cover is a two-stop gradient whose hue is hashed from
+`artist|album` (one colour per artist) with the artist and title drawn on top by
+`ffmpeg`, using the Noto fonts vendored in `assets/fonts`. Arabic is shaped
+properly (ffmpeg carries libharfbuzz), mixed-script titles are split onto
+separate lines (neither font covers the other's script), and long names are
+shrunk to fit. Generated covers are recorded in
+`$CACHE_DIR/generated-covers.json`, so a later pass still retries them and
+upgrades them to real artwork when a provider finally has it — the library tree
+stays clean instead of carrying marker files.
+
+Track-level search only runs for a folder holding exactly one track: one track's
+cover is not evidence for what is on a whole compilation, so multi-track folders
+fall through to the thumbnail and then a generated cover.
 
 Artwork is written as a `cover.*` sidecar (e.g. `cover.jpg`) in the album folder.
 
@@ -263,6 +288,8 @@ curl -X POST http://localhost:80/cache/cleanup \
 
 ```
 nona-metadata/
+├── assets/
+│   └── fonts/                   # Noto Sans + Noto Sans Arabic, for generated covers
 ├── frontend/                    # Nuxt web interface
 ├── mcp/
 │   ├── nona_mcp.py              # Song-name -> URL client, CLI and MCP server
@@ -279,20 +306,24 @@ nona-metadata/
 │   │   └── albumArt.ts          # POST /fetch-album-art
 │   ├── scripts/
 │   │   ├── fetchLyricsForExisting.ts     # Backfill lyrics for the whole library
-│   │   └── fetchAlbumArtForExisting.ts   # Backfill album art for the whole library
+│   │   ├── fetchAlbumArtForExisting.ts   # Backfill album art for the whole library
+│   │   └── auditAlbumArt.ts              # Read-only report of every folder's artwork
 │   ├── services/
 │   │   ├── ai.ts                # Gemini metadata extraction
 │   │   ├── albumArt.ts          # Cover art orchestration (score + download)
 │   │   ├── albumArtProviders.ts # Cover art search: iTunes, Deezer, MusicBrainz, Discogs
+│   │   ├── albumArtPlaceholder.ts # Generated cover art (last resort) + its registry
+│   │   ├── sourceContext.ts     # Source-video hints/thumbnails from the Source tag
 │   │   ├── lyrics.ts            # Lyrics lookup (LRCLIB) and .lrc writing
 │   │   ├── videoProcessor.ts    # Download + tag + sidecar orchestration
 │   │   └── cache.ts             # SQLite cache
-│   └── utils/                   # File, path, command and matching helpers
+│   └── utils/                   # File, path, command, matching and folder helpers
 └── music/                       # Organized music library
     └── Artist/
         └── Album/
             ├── Track.m4a
-            └── Track.lrc        # Lyrics sidecar
+            ├── Track.lrc        # Lyrics sidecar
+            └── cover.jpg        # Artwork (real, or generated)
 ```
 
 ## 💾 Intelligent Caching System

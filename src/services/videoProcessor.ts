@@ -1,6 +1,6 @@
 import { execFile } from "child_process";
 import { promises as fs } from "fs";
-import { join } from "path";
+import { dirname, join, relative } from "path";
 import { baseDirectory, bufferSizes } from "../config/constants.js";
 import type { MetaData } from "../types/metadata.js";
 import { getCaseMatchedOrganizedPath } from "../utils/caseInsensitiveMatching.js";
@@ -17,6 +17,11 @@ import { buildSearchHints, pickThumbnailUrls } from "../utils/thumbnail.js";
 import { generateContentWithRetry } from "./ai.js";
 import type { AlbumArtHints } from "./albumArt.js";
 import { fetchAlbumArt, saveAlbumArt } from "./albumArt.js";
+import {
+  forgetGeneratedCover,
+  isGeneratedCover,
+  markGeneratedCover,
+} from "./albumArtPlaceholder.js";
 import { CacheManager } from "./cache.js";
 import { fetchLyrics, saveLyrics } from "./lyrics.js";
 import { downloadVideo, getVideoInfo } from "./youtube.js";
@@ -93,9 +98,13 @@ class AlbumArtQueue {
 const albumArtQueue = new AlbumArtQueue();
 
 /**
- * Fetches and saves album art if it doesn't already exist
+ * Fetches and saves album art if it doesn't already exist.
+ *
+ * Covers both real artwork and the generated fallback, and records which one
+ * landed so that a generated cover can still be replaced by a real one later.
  * @param artist The artist name
- * @param album The album name
+ * @param album The album name (may be missing or "Unknown Album")
+ * @param title The track title, used to find artwork for a track whose album is unknown
  * @param fallbackImageUrls Optional thumbnail URLs to use when no provider has a match
  * @param hints Optional source-media context that widens the provider search
  * @returns The path to the album art file, or null if not found/saved
@@ -103,44 +112,63 @@ const albumArtQueue = new AlbumArtQueue();
 async function handleAlbumArt(
   artist: string,
   album: string | null,
+  title: string,
   fallbackImageUrls?: string[],
   hints?: AlbumArtHints,
 ): Promise<string | null> {
-  if (!album || album === "Unknown Album") {
+  if (!artist) {
+    console.log("Album art: Skipping (no artist specified)");
+    return null;
+  }
+
+  // Tracks whose release could not be identified live in "Unknown Album"; that
+  // folder still gets a cover, so the album name is never a reason to skip.
+  const albumFolderName = album?.trim() ? album : "Unknown Album";
+  const albumArtPath = await getAlbumArtPath(artist, albumFolderName);
+  if (!albumArtPath) {
     console.log(
-      `Album art: Skipping (no album specified or unknown album) for "${artist}"`,
+      `Album art: Unable to get path for "${albumFolderName}" by "${artist}"`,
     );
     return null;
   }
 
-  const albumArtPath = await getAlbumArtPath(artist, album);
-  if (!albumArtPath) {
-    console.log(`Album art: Unable to get path for "${album}" by "${artist}"`);
-    return null;
-  }
+  const albumDirectory = relative(baseDirectory, dirname(albumArtPath));
+  const label =
+    albumFolderName === "Unknown Album" ? title || "Singles" : albumFolderName;
 
   try {
     const existingAlbumArt = await findExistingAlbumArt(albumArtPath);
-    if (existingAlbumArt) {
+    if (
+      existingAlbumArt &&
+      !(await isGeneratedCover(albumDirectory))
+    ) {
       console.log(`Album art: Already exists: ${existingAlbumArt}`);
       return existingAlbumArt;
     }
   } catch {
-    console.log(`Album art: Need to fetch for "${album}" by "${artist}"`);
+    console.log(`Album art: Need to fetch for "${albumFolderName}" by "${artist}"`);
   }
 
   return await albumArtQueue.add(async () => {
     try {
       const existingAlbumArt = await findExistingAlbumArt(albumArtPath);
-      if (existingAlbumArt) {
+      if (
+        existingAlbumArt &&
+        !(await isGeneratedCover(albumDirectory))
+      ) {
         console.log(
           `Album art: Already exists (created during queue wait): ${existingAlbumArt}`,
         );
         return existingAlbumArt;
       }
 
-      console.log(`Album art: Fetching for "${album}" by "${artist}"...`);
-      const albumArtResult = await fetchAlbumArt(artist, album, {
+      console.log(
+        `Album art: Fetching for "${albumFolderName}" by "${artist}"...`,
+      );
+      const albumArtResult = await fetchAlbumArt(artist, albumFolderName, {
+        trackTitle: title || undefined,
+        placeholderLabel: label,
+        allowGeneratedArt: true,
         fallbackImageUrls,
         hints,
       });
@@ -152,17 +180,24 @@ async function handleAlbumArt(
           albumArtPath,
         );
         if (savedPath) {
-          console.log(`Album art: Successfully saved: ${savedPath}`);
+          if (albumArtResult.source === "generated") {
+            await markGeneratedCover(albumDirectory, label);
+          } else {
+            await forgetGeneratedCover(albumDirectory);
+          }
+          console.log(
+            `Album art: Successfully saved (${albumArtResult.description}): ${savedPath}`,
+          );
           return savedPath;
         }
       }
 
       console.log(
-        `Album art: Failed to fetch/save for "${album}" by "${artist}"`,
+        `Album art: Failed to fetch/save for "${albumFolderName}" by "${artist}"`,
       );
     } catch (error) {
       console.warn(
-        `Album art: Error fetching for "${album}" by "${artist}":`,
+        `Album art: Error fetching for "${albumFolderName}" by "${artist}":`,
         error,
       );
     }
@@ -289,6 +324,7 @@ export async function processVideo(
         handleAlbumArt(
           aiVideoData.artist,
           aiVideoData.album,
+          aiVideoData.title,
           pickThumbnailUrls(videoInfo, videoUrl),
           buildSearchHints(videoInfo, videoUrl),
         ),
@@ -493,6 +529,7 @@ Release Year: ${videoInfo.release_year || "N/A"}
       handleAlbumArt(
         aiVideoData.artist,
         aiVideoData.album,
+        aiVideoData.title,
         pickThumbnailUrls(videoInfo, videoUrl),
         buildSearchHints(videoInfo, videoUrl),
       ),
