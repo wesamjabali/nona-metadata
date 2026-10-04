@@ -134,8 +134,13 @@ async function fetchAlbumArtForFolder(
     `✅ Saved album art (${albumArtResult.description}) to: ${savedPath}`,
   );
 
+  // "Upgraded" means a placeholder was replaced by real artwork — not a
+  // placeholder that was merely redrawn, which is why the source is checked.
+  const replacedPlaceholder =
+    generatedArt && albumArtResult.source !== "generated";
+
   return {
-    outcome: generatedArt ? "upgraded" : "fetched",
+    outcome: replacedPlaceholder ? "upgraded" : "fetched",
     source: albumArtResult.source,
   };
 }
