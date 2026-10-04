@@ -13,12 +13,17 @@
  *  3. The same two providers widened with hints derived from the source media
  *     (e.g. the YouTube video title / uploader), which rescues albums and tracks
  *     whose stored name differs from the provider's edition name.
- *  4. MusicBrainz / Cover Art Archive + Discogs — free community databases,
+ *  4. The same two providers asked for the *artist* alone, scored against the
+ *     release title with a higher artist floor. A release can be credited under a
+ *     spelling no title search will guess (Deezer's "Ya Talaaen El Jabal" vs the
+ *     folder's "Ya Tal'een Al Jabal"), and the artist name is the one term known
+ *     to be right.
+ *  5. MusicBrainz / Cover Art Archive + Discogs — free community databases,
  *     weaker on Arabic material, only used when the above fail.
- *  5. The caller-supplied fallback image(s) — typically the source video's
+ *  6. The caller-supplied fallback image(s) — typically the source video's
  *     thumbnail, including the deterministic YouTube variants — so a folder at
  *     least gets *some* artwork.
- *  6. A generated placeholder cover (gradient + artist/album text), when the
+ *  7. A generated placeholder cover (gradient + artist/album text), when the
  *     caller asks for one. This is what guarantees a folder is never blank: a
  *     real cover always wins, but "no artwork at all" stops being an outcome.
  *     Generated covers are marked on disk so a later run can still replace them
@@ -31,6 +36,11 @@
  */
 
 import { removeFileExtension } from "../utils/file.js";
+import {
+  MIN_ALBUM_MATCH_SCORE,
+  MIN_ARTIST_MATCH_SCORE,
+  MIN_ARTIST_ONLY_MATCH_SCORE,
+} from "../utils/musicMatching.js";
 import type {
   AlbumArtCandidate,
   AlbumArtProvider,
@@ -325,26 +335,34 @@ async function downloadRankedCandidates(
  * Ranks album-level candidates and downloads the best one.
  * @param candidates The raw provider candidates.
  * @param query The album being searched for.
+ * @param minArtistScore Artist floor to apply (higher for artist-driven searches).
  * @returns The downloaded image and its provenance, or null.
  */
 async function downloadAlbumCover(
   candidates: AlbumArtCandidate[],
   query: AlbumArtQuery,
+  minArtistScore: number = MIN_ARTIST_MATCH_SCORE,
 ): Promise<AlbumArtResult | null> {
-  return downloadRankedCandidates(rankCandidates(candidates, query));
+  return downloadRankedCandidates(
+    rankCandidates(candidates, query, MIN_ALBUM_MATCH_SCORE, minArtistScore),
+  );
 }
 
 /**
  * Ranks track-level candidates and downloads the best one.
  * @param candidates The raw provider candidates.
  * @param query The track being searched for.
+ * @param minArtistScore Artist floor to apply (higher for artist-driven searches).
  * @returns The downloaded image and its provenance, or null.
  */
 async function downloadTrackCover(
   candidates: AlbumArtCandidate[],
   query: TrackArtQuery,
+  minArtistScore: number = MIN_ARTIST_MATCH_SCORE,
 ): Promise<AlbumArtResult | null> {
-  return downloadRankedCandidates(rankTrackCandidates(candidates, query));
+  return downloadRankedCandidates(
+    rankTrackCandidates(candidates, query, MIN_ALBUM_MATCH_SCORE, minArtistScore),
+  );
 }
 
 /**
@@ -505,7 +523,77 @@ export async function fetchAlbumArt(
     }
   }
 
-  // Phase 4: community databases. Lower coverage (especially for Arabic
+  // Phase 4: ask the providers for the artist's own catalogue. This is the last
+  // provider step and exists because a release can be credited under a spelling
+  // no title search will guess — Deezer has Rim Banna's "Ya Talaaen El Jabal",
+  // while the folder says "Ya Tal'een Al Jabal" and no query built from the title
+  // finds it. The artist name is the one term known to be right, and the higher
+  // artist floor compensates for the looser query.
+  if (trackTitle) {
+    const artistOnlyTrackQuery: TrackArtQuery = {
+      artist: artistName,
+      track: trackTitle,
+    };
+
+    const artistOnlyTrack = await downloadTrackCover(
+      await gatherCandidates([
+        searchItunesTrackCandidates(artistOnlyTrackQuery, [artistName]),
+        searchDeezerTrackCandidates(artistOnlyTrackQuery, [artistName]),
+      ]),
+      artistOnlyTrackQuery,
+      MIN_ARTIST_ONLY_MATCH_SCORE,
+    );
+
+    if (artistOnlyTrack) {
+      return artistOnlyTrack;
+    }
+  }
+
+  if (trackTitle) {
+    const titleOnlyQuery: TrackArtQuery = {
+      artist: artistName,
+      track: trackTitle,
+    };
+
+    // Title alone. A combined "artist title" query returns nothing when the
+    // provider files the two fields under different spellings or scripts —
+    // Deezer answers "دعسوقة فرنصا" with zero results, but "فرنصا" alone returns
+    // the track credited to "Do3souqa". The ordinary artist floor still applies,
+    // so the other artists who recorded the same song stay out.
+    const titleOnlyTrack = await downloadTrackCover(
+      await gatherCandidates([
+        searchItunesTrackCandidates(titleOnlyQuery, [trackTitle]),
+        searchDeezerTrackCandidates(titleOnlyQuery, [trackTitle]),
+      ]),
+      titleOnlyQuery,
+    );
+
+    if (titleOnlyTrack) {
+      return titleOnlyTrack;
+    }
+  }
+
+  if (hasSearchableAlbum) {
+    const artistOnlyAlbumQuery: AlbumArtQuery = {
+      artist: artistName,
+      album: albumName,
+    };
+
+    const artistOnlyAlbum = await downloadAlbumCover(
+      await gatherCandidates([
+        searchItunesCandidates(artistOnlyAlbumQuery, [artistName]),
+        searchDeezerCandidates(artistOnlyAlbumQuery, [artistName]),
+      ]),
+      artistOnlyAlbumQuery,
+      MIN_ARTIST_ONLY_MATCH_SCORE,
+    );
+
+    if (artistOnlyAlbum) {
+      return artistOnlyAlbum;
+    }
+  }
+
+  // Phase 5: community databases. Lower coverage (especially for Arabic
   // releases) but occasionally the only source, so still verified by score.
   if (hasSearchableAlbum) {
     const albumQuery: AlbumArtQuery = { artist: artistName, album: albumName };
@@ -523,7 +611,7 @@ export async function fetchAlbumArt(
     }
   }
 
-  // Phase 5: the source video's thumbnail. Several URLs may be offered (e.g.
+  // Phase 6: the source video's thumbnail. Several URLs may be offered (e.g.
   // YouTube's maxres/sd/hq variants) because the highest resolution is not
   // published for every video — the first one that downloads wins.
   const fallbackUrls = collectFallbackImageUrls(sourceContext);
@@ -552,7 +640,7 @@ export async function fetchAlbumArt(
     }
   }
 
-  // Phase 6: draw one, so a folder is never left blank.
+  // Phase 7: draw one, so a folder is never left blank.
   if (options.allowGeneratedArt) {
     const label =
       options.placeholderLabel?.trim() ||

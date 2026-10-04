@@ -25,10 +25,10 @@ import {
   MIN_ALBUM_MATCH_SCORE,
   MIN_ALBUM_TITLE_MATCH_SCORE,
   MIN_ARTIST_MATCH_SCORE,
+  MIN_ARTIST_ONLY_MATCH_SCORE,
   MIN_TRACK_TITLE_MATCH_SCORE,
   scoreAlbumMatch,
 } from "../utils/musicMatching.js";
-
 const USER_AGENT =
   "nona-metadata/1.0.0 (https://github.com/nona-metadata/nona-metadata)";
 
@@ -224,6 +224,7 @@ export function rankCandidates(
   candidates: AlbumArtCandidate[],
   query: AlbumArtQuery,
   minScore: number = MIN_ALBUM_MATCH_SCORE,
+  minArtistScore: number = MIN_ARTIST_MATCH_SCORE,
 ): ScoredAlbumArtCandidate[] {
   const scored: ScoredAlbumArtCandidate[] = [];
 
@@ -237,7 +238,7 @@ export function rankCandidates(
 
     const trusted =
       score.combined >= minScore &&
-      score.artist >= MIN_ARTIST_MATCH_SCORE &&
+      score.artist >= minArtistScore &&
       score.album >= MIN_ALBUM_TITLE_MATCH_SCORE;
 
     if (!trusted) {
@@ -274,6 +275,7 @@ export function rankTrackCandidates(
   candidates: AlbumArtCandidate[],
   query: TrackArtQuery,
   minScore: number = MIN_ALBUM_MATCH_SCORE,
+  minArtistScore: number = MIN_ARTIST_MATCH_SCORE,
 ): ScoredAlbumArtCandidate[] {
   const scored: ScoredAlbumArtCandidate[] = [];
 
@@ -288,7 +290,7 @@ export function rankTrackCandidates(
 
     const trusted =
       score.combined >= minScore &&
-      score.artist >= MIN_ARTIST_MATCH_SCORE &&
+      score.artist >= minArtistScore &&
       score.album >= MIN_TRACK_TITLE_MATCH_SCORE;
 
     if (!trusted) {

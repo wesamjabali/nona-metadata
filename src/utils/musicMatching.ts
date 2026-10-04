@@ -39,6 +39,25 @@ const NOISE_TOKENS = new Set([
   "clean",
   "complete",
   "full",
+  // Format/edition qualifiers that providers append to the *release* title.
+  // Without these, a real match is rejected for carrying its qualifier: Deezer's
+  // "7ASAD (Live In Berlin)" by Shabjdeed scored 0.40 against the folder's
+  // "7ASAD" — just under the album floor — even though it is the same artist and
+  // the same record.
+  "live",
+  "remix",
+  "remixes",
+  "mix",
+  "version",
+  "edit",
+  "instrumental",
+  "acoustic",
+  "session",
+  "sessions",
+  "unplugged",
+  "concert",
+  "single",
+  "ep",
 ]);
 
 /** Arabic letter variants that should compare equal when matching. */
@@ -223,6 +242,100 @@ function scoreNormalizedPair(a: string, b: string): number {
 }
 
 /**
+ * Arabic letters mapped to the Latin form this library already uses.
+ *
+ * Wesam's library files the same artist under both scripts ("دعسوقة" and
+ * "Do3souqa", "سناء موسى" and "Sanaa Moussa"), and a provider often credits only
+ * one of them. Without a bridge the two sides compare at exactly 0, so a folder
+ * in Arabic can never match its own release credited in Latin (or the reverse).
+ *
+ * The mapping follows the Arabic chat alphabet the library already uses for
+ * numerals (ع→3, ح→7) and, wherever there is a choice, the spelling that
+ * `foldTransliteration` converges on (ق→k, و→u, ي→i), so both sides fold to the
+ * same skeleton.
+ */
+const ARABIC_TO_LATIN: ReadonlyArray<readonly [string, string]> = [
+  ["ث", "th"],
+  ["ش", "sh"],
+  ["خ", "kh"],
+  ["غ", "gh"],
+  ["ذ", "dh"],
+  ["ع", "3"],
+  ["ح", "7"],
+  ["ء", "2"],
+  ["ئ", "i"],
+  ["ؤ", "u"],
+  ["أ", "a"],
+  ["إ", "a"],
+  ["آ", "a"],
+  ["ٱ", "a"],
+  ["ا", "a"],
+  ["ى", "a"],
+  ["ة", "a"],
+  ["و", "u"],
+  ["ي", "i"],
+  ["ق", "k"],
+  ["ب", "b"],
+  ["ت", "t"],
+  ["ج", "j"],
+  ["د", "d"],
+  ["ر", "r"],
+  ["ز", "z"],
+  ["س", "s"],
+  ["ص", "s"],
+  ["ض", "d"],
+  ["ط", "t"],
+  ["ظ", "dh"],
+  ["ف", "f"],
+  ["ك", "k"],
+  ["ل", "l"],
+  ["م", "m"],
+  ["ن", "n"],
+  ["ه", "h"],
+];
+
+/**
+ * Rewrites Arabic script in the Latin spelling this library uses, so an
+ * Arabic-script name can be compared with a Latin one. Latin input passes
+ * through untouched.
+ * @param value A normalized (lowercase, diacritic-free) string.
+ * @returns The same string with Arabic letters transliterated.
+ */
+export function transliterateArabicToLatin(value: string): string {
+  let result = "";
+
+  for (const character of value) {
+    const mapped = ARABIC_TO_LATIN.find(([arabic]) => arabic === character);
+    result += mapped ? mapped[1] : character;
+  }
+
+  return result;
+}
+
+/**
+ * Similarity across scripts: Arabic vs Latin only compares meaningfully once the
+ * Arabic side is transliterated, so that pairing gets its own attempt.
+ * @param a A normalized string.
+ * @param b A normalized string.
+ * @returns The best of the direct and transliterated comparisons.
+ */
+function crossScriptSimilarity(a: string, b: string): number {
+  const aHasArabic = /[\u0600-\u06ff]/.test(a);
+  const bHasArabic = /[\u0600-\u06ff]/.test(b);
+
+  // Only the mismatched case is missing anything: same-script pairs are already
+  // covered by the comparisons the caller makes.
+  if (aHasArabic === bHasArabic) {
+    return 0;
+  }
+
+  const left = foldTransliteration(transliterateArabicToLatin(a));
+  const right = foldTransliteration(transliterateArabicToLatin(b));
+
+  return scoreNormalizedPair(left, right);
+}
+
+/**
  * Combined similarity for a single metadata field. Takes the best of exact,
  * containment, token, bigram and transliteration-folded matching so that short
  * artist names ("Emel") still match long ones ("Emel Mathlouthi") and Arabic
@@ -241,6 +354,7 @@ export function musicSimilarity(a: string, b: string): number {
       foldTransliteration(normalizedA),
       foldTransliteration(normalizedB),
     ),
+    crossScriptSimilarity(normalizedA, normalizedB),
   );
 }
 
@@ -278,6 +392,20 @@ export const MIN_ALBUM_TITLE_MATCH_SCORE = 0.45;
  * demanding one costs almost nothing and keeps lookalike titles out.
  */
 export const MIN_TRACK_TITLE_MATCH_SCORE = 0.6;
+
+/**
+ * Minimum artist similarity required when the *artist name alone* drove the
+ * search ("give me this artist's catalogue").
+ *
+ * The normal artist floor exists to let spelling variants through, and it is low
+ * because the release title is doing the identifying. Here the search itself was
+ * built from the artist name, so a loose artist match would return a different
+ * artist's catalogue and the title floor would be the only thing left holding
+ * the line. Not every transliteration cousin clears this ("فيروز" vs "Fairuz"
+ * scores 0.63) — those cases are covered by the ordinary searches, which compare
+ * the release title in scripts that do line up.
+ */
+export const MIN_ARTIST_ONLY_MATCH_SCORE = 0.7;
 
 /**
  * Minimum weighted {@link AlbumMatchScore.combined} required before provider
