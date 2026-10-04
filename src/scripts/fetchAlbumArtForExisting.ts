@@ -8,6 +8,7 @@ import {
   markGeneratedCover,
 } from "../services/albumArtPlaceholder.js";
 import { JobTracker } from "../services/jobTracker.js";
+import { normalizeCoverFile } from "../services/coverImage.js";
 import { resolveSourceContext } from "../services/sourceContext.js";
 import {
   type AlbumFolder,
@@ -21,6 +22,8 @@ import { findExistingAlbumArt, getAlbumArtPath } from "../utils/file.js";
 type FolderOutcome =
   /** Art was already there and is not a generated placeholder. */
   | "existed"
+  /** An existing cover was rewritten because clients could not read it. */
+  | "normalized"
   /** A cover was written in this pass. */
   | "fetched"
   /** A generated placeholder was replaced by real artwork. */
@@ -35,6 +38,8 @@ export interface AlbumArtBackfillSummary {
   processed: number;
   /** Folders whose cover was written in this pass. */
   fetched: number;
+  /** Existing covers rewritten because clients could not read them. */
+  normalized: number;
   /** Placeholders replaced by real artwork in this pass. */
   upgraded: number;
   /** Folders that already had (real) artwork. */
@@ -82,6 +87,17 @@ async function fetchAlbumArtForFolder(
   const existingArt = await findExistingAlbumArt(albumArtPath);
   const generatedArt = await isGeneratedCover(folder.relativePath);
   if (existingArt && !generatedArt) {
+    // A cover a client cannot decode is as good as no cover: Navidrome answers
+    // such an album with its own placeholder art. Normalizing is local, so this
+    // never risks swapping the artwork that is already there for a worse match.
+    const normalizedPath = await normalizeCoverFile(existingArt);
+    if (normalizedPath && normalizedPath !== existingArt) {
+      console.log(
+        `🔧 Normalized a cover clients could not read: ${existingArt} -> ${normalizedPath}`,
+      );
+      return { outcome: "normalized" };
+    }
+
     console.log(`✅ Album art already exists: ${existingArt}`);
     return { outcome: "existed" };
   }
@@ -178,6 +194,7 @@ async function fetchAlbumArtForExistingFiles(
   const summary: AlbumArtBackfillSummary = {
     processed: 0,
     fetched: 0,
+    normalized: 0,
     upgraded: 0,
     existed: 0,
     skipped: 0,
@@ -202,6 +219,9 @@ async function fetchAlbumArtForExistingFiles(
       switch (outcome) {
         case "fetched":
           summary.fetched++;
+          break;
+        case "normalized":
+          summary.normalized++;
           break;
         case "upgraded":
           summary.upgraded++;
@@ -245,6 +265,9 @@ async function fetchAlbumArtForExistingFiles(
     `   Album folders processed: ${summary.processed}/${folders.length}`,
   );
   console.log(`   Covers written: ${summary.fetched}`);
+  console.log(
+    `   Unreadable covers normalized: ${summary.normalized}`,
+  );
   console.log(`   Placeholders upgraded to real art: ${summary.upgraded}`);
   console.log(`   Already had artwork: ${summary.existed}`);
   console.log(`   Skipped (nothing to search with): ${summary.skipped}`);

@@ -35,7 +35,10 @@
  * to the thumbnail fallback.
  */
 
+import { unlink } from "fs/promises";
+
 import { removeFileExtension } from "../utils/file.js";
+import { normalizeCoverImage } from "./coverImage.js";
 import {
   MIN_ALBUM_MATCH_SCORE,
   MIN_ARTIST_MATCH_SCORE,
@@ -792,7 +795,13 @@ export async function fetchAlbumArt(
 }
 
 /**
- * Saves album art to a file with the correct extension based on content type.
+ * Saves album art next to the album, normalized so every client can read it.
+ *
+ * The provider's bytes are re-encoded first ({@link normalizeCoverImage}): a
+ * cover that is oversized, 16-bit or in an exotic container is exactly the case
+ * where a client silently substitutes its own placeholder art. Any other
+ * `cover.*` variant in the folder is removed afterwards, so a readable cover
+ * never sits next to the unreadable one it replaced.
  * @param imageData The image data as ArrayBuffer.
  * @param contentType The MIME content type of the image.
  * @param basePath The base path without extension where to save the image.
@@ -804,14 +813,46 @@ export async function saveAlbumArt(
   basePath: string,
 ): Promise<string | null> {
   try {
-    const extension = getExtensionFromContentType(contentType);
+    const normalized = await normalizeCoverImage(imageData, contentType);
+    const bytes = normalized ?? { data: imageData, contentType };
+    const extension = getExtensionFromContentType(bytes.contentType);
     const filePath = removeFileExtension(basePath) + extension;
 
-    await Bun.write(filePath, new Uint8Array(imageData));
+    await Bun.write(filePath, new Uint8Array(bytes.data));
     console.log(`Successfully saved album cover to ${filePath}`);
+
+    await removeOtherCoverVariants(basePath, filePath);
     return filePath;
   } catch (error) {
     console.error("Failed to write image file:", error);
     return null;
   }
+}
+
+/** Every extension a cover file may be stored under. */
+const COVER_EXTENSIONS = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"];
+
+/**
+ * Deletes the cover variants the folder does not use.
+ * @param basePath The cover base path, without extension.
+ * @param keepPath The cover file that was just written.
+ */
+async function removeOtherCoverVariants(
+  basePath: string,
+  keepPath: string,
+): Promise<void> {
+  const base = removeFileExtension(basePath);
+
+  await Promise.all(
+    COVER_EXTENSIONS.map(async (extension) => {
+      const candidate = base + extension;
+      if (candidate === keepPath) {
+        return;
+      }
+
+      await unlink(candidate)
+        .then(() => console.log(`Removed superseded cover: ${candidate}`))
+        .catch(() => {});
+    }),
+  );
 }
