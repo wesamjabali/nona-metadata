@@ -18,11 +18,43 @@ export const serverConfig = {
 };
 
 // API configuration
-const apiKeyEnv = process.env.GEMINI_API_KEY;
+// The metadata model is reached over an OpenAI-compatible chat completions
+// endpoint, so the provider is a deployment choice and not a code path:
+//   OpenRouter (default)   https://openrouter.ai/api/v1
+//   Google AI Studio       https://generativelanguage.googleapis.com/v1beta/openai
+const apiKeyEnv =
+  process.env.LLM_API_KEY ||
+  process.env.OPENROUTER_API_KEY ||
+  process.env.GEMINI_API_KEY;
 if (!apiKeyEnv) {
-  throw new Error("GEMINI_API_KEY environment variable not set.");
+  throw new Error(
+    "LLM_API_KEY (or OPENROUTER_API_KEY) environment variable not set.",
+  );
 }
 export const apiKey: string = apiKeyEnv;
+
+// Base URL of the OpenAI-compatible endpoint; "/chat/completions" is appended.
+export const llmBaseUrl = (
+  process.env.LLM_BASE_URL || "https://openrouter.ai/api/v1"
+).replace(/\/+$/, "");
+
+// OpenRouter's ":online" suffix runs the model with web-search grounding, which
+// these metadata prompts depend on (the model is told to search for album, bpm,
+// mood). Only applied to an OpenRouter base URL; LLM_WEB_SEARCH=0 turns it off.
+const baseModelName = process.env.LLM_MODEL || "google/gemini-2.5-flash";
+export const llmWebSearch = process.env.LLM_WEB_SEARCH !== "0";
+export const modelName =
+  llmWebSearch &&
+  llmBaseUrl.includes("openrouter") &&
+  !baseModelName.includes(":")
+    ? `${baseModelName}:online`
+    : baseModelName;
+
+// A search-grounded metadata call is slow; 120 s is generous but finite.
+export const llmTimeoutMs = parseInt(
+  process.env.LLM_TIMEOUT_MS || "120000",
+  10,
+);
 
 const discogsApiKeyEnv = process.env.DISCOGS_API_KEY;
 if (!discogsApiKeyEnv) {
@@ -31,8 +63,6 @@ if (!discogsApiKeyEnv) {
   );
 }
 export const discogsApiKey: string | undefined = discogsApiKeyEnv;
-
-export const modelName = "gemini-2.5-flash";
 
 // System instruction for the AI model
 export const systemInstruction = `You are a metadata search and extraction specialist. You only return JSON.

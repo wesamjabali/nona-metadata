@@ -1,8 +1,22 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { apiKey, modelName, systemInstruction } from "../config/constants.js";
+import {
+  apiKey,
+  llmBaseUrl,
+  llmTimeoutMs,
+  modelName,
+  systemInstruction,
+} from "../config/constants.js";
 
-// Initialize Google AI
-const genAI = new GoogleGenerativeAI(apiKey);
+/**
+ * Shape the call sites already consume: `result.response.text()`.
+ * The metadata model is reached over an OpenAI-compatible endpoint, so the
+ * provider (OpenRouter, Google AI Studio's /v1beta/openai, …) is a deployment
+ * choice rather than a code path.
+ */
+export interface AiResponse {
+  response: { text(): string };
+}
+
+const retryableStatuses = [408, 409, 425, 429, 500, 502, 503, 504];
 
 /**
  * Retry wrapper for AI API calls with exponential backoff
@@ -10,7 +24,7 @@ const genAI = new GoogleGenerativeAI(apiKey);
 async function retryWithBackoff<T>(
   operation: () => Promise<T>,
   maxRetries: number = 3,
-  baseDelay: number = 1000
+  baseDelay: number = 1000,
 ): Promise<T> {
   let lastError: Error;
 
@@ -20,14 +34,14 @@ async function retryWithBackoff<T>(
     } catch (error) {
       lastError = error as Error;
 
-      if (!isNetworkError(error as Error)) {
+      if (!isRetryable(lastError)) {
         throw error;
       }
 
       if (attempt === maxRetries) {
         console.error(
           `AI API call failed after ${maxRetries + 1} attempts:`,
-          lastError.message
+          lastError.message,
         );
         throw lastError;
       }
@@ -37,7 +51,7 @@ async function retryWithBackoff<T>(
         `AI API call failed (attempt ${attempt + 1}/${
           maxRetries + 1
         }), retrying in ${delay}ms:`,
-        lastError.message
+        lastError.message,
       );
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
@@ -47,12 +61,22 @@ async function retryWithBackoff<T>(
 }
 
 /**
- * Check if an error is network-related and should be retried
+ * Check if an error is transient (network hiccup, rate limit, upstream 5xx)
+ * and should be retried. A depleted account or a bad key is NOT retryable —
+ * retrying it just hides the real problem behind three identical failures.
  */
-function isNetworkError(error: Error): boolean {
+function isRetryable(error: Error): boolean {
+  const status = (error as { status?: number }).status;
+  if (typeof status === "number") {
+    return retryableStatuses.includes(status);
+  }
+
   const networkErrorMessages = [
     "socket connection was closed unexpectedly",
+    "socket hang up",
     "timeout",
+    "timed out",
+    "aborted",
     "ECONNRESET",
     "ENOTFOUND",
     "ECONNREFUSED",
@@ -61,43 +85,74 @@ function isNetworkError(error: Error): boolean {
   ];
 
   return networkErrorMessages.some((msg) =>
-    error.message.toLowerCase().includes(msg.toLowerCase())
+    error.message.toLowerCase().includes(msg.toLowerCase()),
   );
 }
 
-export const model = genAI.getGenerativeModel({
-  model: modelName,
-  systemInstruction,
-  tools: modelName.includes("1.5")
-    ? [
-        {
-          googleSearchRetrieval: {},
-        },
-      ]
-    : [
-        {
-          googleSearch: {},
-        } as any,
-      ],
-});
-
 /**
- * Generate content with retry logic and timeout handling
+ * One metadata call over the OpenAI-compatible chat completions API.
  */
-export async function generateContentWithRetry(prompt: string) {
-  return retryWithBackoff(async () => {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
+async function callModel(prompt: string): Promise<string> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), llmTimeoutMs);
 
-    try {
-      const result = await model.generateContent(prompt);
-      clearTimeout(timeoutId);
-      return result;
-    } catch (error) {
-      clearTimeout(timeoutId);
+  try {
+    const response = await fetch(`${llmBaseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        // Attribution headers OpenRouter uses for its dashboards; other
+        // providers ignore them.
+        "HTTP-Referer": "https://nona.wesamjabali.com",
+        "X-Title": "Nona Metadata",
+      },
+      body: JSON.stringify({
+        model: modelName,
+        messages: [
+          { role: "system", content: systemInstruction },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0,
+        max_tokens: 4096,
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const body = (await response.text()).slice(0, 500);
+      const error = new Error(
+        `Metadata model request failed (${response.status}) at ${llmBaseUrl}: ${body}`,
+      );
+      (error as { status?: number }).status = response.status;
       throw error;
     }
-  });
+
+    const data = (await response.json()) as {
+      choices?: { message?: { content?: string } }[];
+    };
+    const text = data?.choices?.[0]?.message?.content;
+
+    if (typeof text !== "string" || !text.trim()) {
+      throw new Error(
+        `Metadata model returned no content: ${JSON.stringify(data).slice(0, 300)}`,
+      );
+    }
+
+    return text;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
-console.log("✅ AI Model initialized");
+/**
+ * Generate content with retry logic and timeout handling.
+ */
+export async function generateContentWithRetry(
+  prompt: string,
+): Promise<AiResponse> {
+  const text = await retryWithBackoff(() => callModel(prompt));
+  return { response: { text: () => text } };
+}
+
+console.log(`✅ AI model initialized: ${modelName} via ${llmBaseUrl}`);
