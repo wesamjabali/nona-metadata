@@ -124,9 +124,13 @@ export async function handleUpdateMetadata(
         newFilename = basename(absoluteFilePath);
       }
 
+      // A PATCH that changes only the album (or only the title) leaves the other
+      // field undefined. Comparing undefined !== currentArtist is true, so the
+      // file used to be relocated under "Unknown Artist" — fall back to the
+      // stored value whenever the caller did not supply one.
       const artistToUse =
-        newArtist !== currentArtist ? newArtist : currentArtist;
-      const albumToUse = newAlbum !== currentAlbum ? newAlbum : currentAlbum;
+        newArtist !== undefined ? newArtist : currentArtist;
+      const albumToUse = newAlbum !== undefined ? newAlbum : currentAlbum;
 
       const finalAlbumToUse = albumToUse;
 
